@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: foodtruck
+      POSTGRES_USER: foodtruck
+      POSTGRES_PASSWORD: foodtruck
+    ports:
+      - "5432:5432"
