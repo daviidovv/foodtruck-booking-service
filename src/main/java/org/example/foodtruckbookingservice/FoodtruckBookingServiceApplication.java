@@ -9,5 +9,5 @@ public class FoodtruckBookingServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(FoodtruckBookingServiceApplication.class, args);
     }
-
+//test
 }
