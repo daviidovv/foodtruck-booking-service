@@ -1,0 +1,13 @@
+# Reviews
+
+Dieser Ordner enthält regelmäßige Code- und Architektur-Reviews.
+
+Reviews sollten durchgeführt werden:
+- Nach jedem Major Feature
+- Monatlich für den Gesamt-Code
+- Vor Major Releases
+- Bei größeren Refactorings
+
+Dateiformat: `YYYY-MM-DD-[komponente]-review.md`
+
+Beispiel: `2026-01-14-booking-api-review.md`

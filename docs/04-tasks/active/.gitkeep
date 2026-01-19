@@ -1,0 +1,7 @@
+# Aktive Tasks
+
+Dieser Ordner enthält alle Tasks, die aktuell in Bearbeitung sind.
+
+Benenne Tasks nach dem Schema: `TASK-XXX-[kurzer-titel].md`
+
+Beispiel: `TASK-001-booking-api-implementation.md`
