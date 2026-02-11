@@ -4,7 +4,7 @@ Letzte Aktualisierung: 2026-01-19
 
 ## Geschäftsziel
 
-Digitales Reservierungssystem für einen Foodtruck, das die manuelle, telefonische Reservierungsannahme ersetzt und Mitarbeitern einen Echtzeit-Überblick über verfügbare Kapazitäten ermöglicht.
+Digitales Reservierungssystem für zwei Foodtrucks an verschiedenen Standorten, das die manuelle, telefonische Reservierungsannahme ersetzt und Mitarbeitern einen Echtzeit-Überblick über verfügbare Kapazitäten ermöglicht.
 
 ### Kernproblem
 
@@ -24,12 +24,17 @@ Dies führt zu:
 ### Lösung
 
 Ein zweiteiliges System:
-1. **Kunden-Website**: Online-Reservierung von Hähnchen und Pommes
-2. **Mitarbeiter-Tablet**: Echtzeit-Übersicht aller Reservierungen im Foodtruck
+1. **Kunden-Website**: Online-Reservierung von Hähnchen und Pommes mit Standortauswahl
+2. **Mitarbeiter-Tablet**: Echtzeit-Übersicht aller Reservierungen im jeweiligen Foodtruck
+
+**Besonderheit: Zwei Standorte**
+- Es existieren zwei Foodtrucks, die an verschiedenen Wochentagen an unterschiedlichen Standorten sind
+- Kunden wählen bei der Reservierung den gewünschten Standort basierend auf dem Wochentag
+- Jeder Standort hat eigene Kapazität und eigene Reservierungsliste
 
 Mitarbeiter sehen auf einen Blick:
-- Alle Reservierungen des Tages
-- Verfügbare Kapazität
+- Alle Reservierungen des Tages für ihren Standort
+- Verfügbare Kapazität am jeweiligen Standort
 - Können Reservierungen bestätigen/ablehnen
 
 ## Zielgruppe
@@ -78,8 +83,10 @@ Mitarbeiter sehen auf einen Blick:
 ### Kunde (Web-Interface)
 
 **Muss**:
+- Standort auswählen basierend auf Wochentag (z.B. Montag-Mittwoch: Standort A, Donnerstag-Samstag: Standort B)
 - Reservierung erstellen (Anzahl Hähnchen, Pommes, Abholzeit)
 - Reservierungsbestätigung erhalten
+- Sehen welcher Foodtruck wann an welchem Standort ist
 
 **Optional** (Design-Entscheidung offen):
 - E-Mail-basierte Reservierung (mit Bestätigungsmail)
@@ -88,10 +95,11 @@ Mitarbeiter sehen auf einen Blick:
 ### Mitarbeiter (Tablet-Interface)
 
 **Muss**:
-- Alle Reservierungen des Tages sehen
+- Alle Reservierungen des Tages für den aktuellen Standort sehen
 - Reservierungen bestätigen/ablehnen
 - Verfügbare Kapazität auf einen Blick
 - Nach Abholzeit sortierbar
+- Standort-spezifische Ansicht (jeder Foodtruck sieht nur seine Reservierungen)
 
 **Nice-to-have**:
 - Filter nach Status (bestätigt, ausstehend, abgeschlossen)
@@ -100,8 +108,10 @@ Mitarbeiter sehen auf einen Blick:
 ### Administrator (Web-Interface)
 
 **Muss**:
-- Übersicht aller Reservierungen
-- Statistiken (Auslastung, etc.)
+- Übersicht aller Reservierungen (beide Standorte)
+- Standortverwaltung (Wochentags-Zuordnung konfigurieren)
+- Kapazität pro Standort konfigurieren
+- Statistiken (Auslastung pro Standort, etc.)
 - Systemverwaltung
 
 ## Nicht-Ziele
@@ -115,8 +125,8 @@ Mitarbeiter sehen auf einen Blick:
   - Keine Registrierung/Login für Kunden notwendig
 - ❌ Keine Speisekartenverwaltung
   - Nur Hähnchen und Pommes (fest)
-- ❌ Keine Multi-Foodtruck-Fähigkeit
-  - System nur für EINEN Foodtruck
+- ~~❌ Keine Multi-Foodtruck-Fähigkeit~~
+  - ✅ **KORREKTUR**: System unterstützt ZWEI Foodtrucks an verschiedenen Standorten (wochentagabhängig)
 - ❌ Keine mobile Apps (iOS/Android)
   - Nur Web-basiert (mobile-optimiert)
 - ❌ Keine Benachrichtigungen für Kunden
@@ -251,11 +261,34 @@ Diese Fragen müssen vor der Implementierung geklärt werden:
 
 ---
 
+## Standort-Konzept
+
+### Wochentagsbasierte Standortzuordnung
+
+**Foodtruck 1**:
+- Standort A (z.B. Innenstadt): Montag, Mittwoch, Freitag
+- Standort B (z.B. Gewerbegebiet): Dienstag, Donnerstag
+
+**Foodtruck 2**:
+- Standort B: Montag, Mittwoch
+- Standort A: Dienstag, Donnerstag, Samstag
+
+(Genaue Zuordnung durch Administrator konfigurierbar)
+
+### Technische Implikationen
+
+- Reservierungen sind standortbezogen, nicht foodtruckbezogen
+- Kunde wählt "Wann & Wo", System ermittelt automatisch welcher Foodtruck dort ist
+- Kapazität wird pro Standort + Tag verwaltet
+- Mitarbeiter-Login erfolgt pro Standort (nicht pro Foodtruck)
+
+---
+
 ## Zusammenfassung
 
-**In einem Satz**: Online-Reservierungssystem für einen Foodtruck, das telefonische Bestellungen und Zettelwirtschaft durch digitales Kapazitätsmanagement ersetzt.
+**In einem Satz**: Online-Reservierungssystem für zwei Foodtrucks an wechselnden Standorten, das telefonische Bestellungen und Zettelwirtschaft durch digitales, standortbasiertes Kapazitätsmanagement ersetzt.
 
 **Hauptnutzen**:
-- Kunden: Bequeme Online-Reservierung
-- Mitarbeiter: Echtzeit-Überblick statt Zettel-Chaos
-- Betreiber: Bessere Kapazitätsplanung und Übersicht
+- Kunden: Bequeme Online-Reservierung mit Standortauswahl je nach Wochentag
+- Mitarbeiter: Echtzeit-Überblick statt Zettel-Chaos, standortspezifische Ansicht
+- Betreiber: Bessere Kapazitätsplanung über beide Standorte hinweg
