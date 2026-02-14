@@ -9,6 +9,22 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Production: Frontend wird von Spring Boot unter / serviert
+  base: '/',
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    // Optimierungen
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
+  // Development: Proxy zu lokalem Backend
   server: {
     port: 3000,
     proxy: {

@@ -1,9 +1,26 @@
+# ===========================================
+# Local Development Docker Compose
+# Nur PostgreSQL - Backend/Frontend laufen lokal
+# Usage: docker-compose up -d
+# ===========================================
+
 services:
-  postgres:
-    image: postgres:16
+  db:
+    image: postgres:16-alpine
+    container_name: foodtruck-dev-db
     environment:
       POSTGRES_DB: foodtruck
       POSTGRES_USER: foodtruck
       POSTGRES_PASSWORD: foodtruck
     ports:
       - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodtruck -d foodtruck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-dev-data:

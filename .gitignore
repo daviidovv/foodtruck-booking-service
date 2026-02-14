@@ -31,3 +31,17 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment ###
+.env
+.env.local
+.env.*.local
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+
+### Docker ###
+*.log

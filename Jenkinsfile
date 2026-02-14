@@ -1,64 +1,61 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'Maven-3.9'
-        jdk 'JDK-21'
-    }
-
     environment {
-        DOCKER_IMAGE = 'foodtruck-api'
-        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE = 'foodtruck-app'
+        DEPLOY_DIR = '/opt/foodtruck'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/daviidovv/foodtruck-booking-service.git'
+                    url: 'https://github.com/YOUR_USERNAME/foodtruck-booking-service.git',
+                    credentialsId: 'github-credentials'
             }
         }
 
-        stage('Build') {
-            steps {
-                sh 'mvn clean package -DskipTests'
+        stage('Test Backend') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21-alpine'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
             }
-        }
-
-        stage('Test') {
             steps {
-                sh 'mvn test'
+                sh 'mvn test -B'
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true,
+                          testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('Docker Build') {
+        stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                script {
+                    sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                    sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                withCredentials([string(credentialsId: 'db-password', variable: 'DB_PASSWORD')]) {
+                withCredentials([string(credentialsId: 'postgres-password', variable: 'POSTGRES_PASSWORD')]) {
                     sh '''
-                        docker stop foodtruck-api || true
-                        docker rm foodtruck-api || true
-                        docker run -d \
-                            --name foodtruck-api \
-                            --restart unless-stopped \
-                            -p 8080:8080 \
-                            -e SPRING_DATASOURCE_URL=jdbc:postgresql://foodtruck-db:5432/foodtruck \
-                            -e SPRING_DATASOURCE_USERNAME=foodtruck \
-                            -e SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD} \
-                            -e SPRING_PROFILES_ACTIVE=prod \
-                            --network foodtruck-net \
-                            ${DOCKER_IMAGE}:latest
+                        # Stop existing containers
+                        docker-compose -f docker-compose.prod.yml down || true
+
+                        # Start with new image
+                        export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+                        docker-compose -f docker-compose.prod.yml up -d --build
+
+                        # Wait for health check
+                        echo "Waiting for application to start..."
+                        sleep 45
                     '''
                 }
             }
@@ -67,8 +64,31 @@ pipeline {
         stage('Health Check') {
             steps {
                 sh '''
-                    sleep 30
-                    curl -f http://localhost:8080/actuator/health || exit 1
+                    # Check if app is healthy
+                    for i in 1 2 3 4 5; do
+                        if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                            echo "Application is healthy!"
+                            exit 0
+                        fi
+                        echo "Attempt $i: Waiting for application..."
+                        sleep 10
+                    done
+                    echo "Health check failed!"
+                    exit 1
+                '''
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                sh '''
+                    # Remove old images (keep last 3)
+                    docker images ${DOCKER_IMAGE} --format "{{.ID}} {{.Tag}}" | \
+                        grep -v latest | \
+                        sort -t. -k2 -n -r | \
+                        tail -n +4 | \
+                        awk '{print $1}' | \
+                        xargs -r docker rmi || true
                 '''
             }
         }
@@ -76,10 +96,11 @@ pipeline {
 
     post {
         success {
-            echo 'Deployment erfolgreich!'
+            echo '✅ Deployment erfolgreich!'
         }
         failure {
-            echo 'Build oder Deployment fehlgeschlagen!'
+            echo '❌ Build oder Deployment fehlgeschlagen!'
+            sh 'docker-compose -f docker-compose.prod.yml logs --tail=100'
         }
         always {
             cleanWs()

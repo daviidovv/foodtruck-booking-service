@@ -1,17 +1,25 @@
 version: '3.8'
 
+# ===========================================
+# Production Docker Compose
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# ===========================================
+
 services:
   app:
-    build: .
-    container_name: foodtruck-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: foodtruck-app
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/foodtruck
-      - SPRING_DATASOURCE_USERNAME=foodtruck
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-changeme}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-foodtruck}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-foodtruck}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
       - SPRING_PROFILES_ACTIVE=prod
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     depends_on:
       db:
         condition: service_healthy
@@ -22,29 +30,41 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: postgres:16-alpine
     container_name: foodtruck-db
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=foodtruck
-      - POSTGRES_USER=foodtruck
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-foodtruck}
+      - POSTGRES_USER=${POSTGRES_USER:-foodtruck}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
     volumes:
-      - foodtruck-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     networks:
       - foodtruck-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U foodtruck -d foodtruck"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-foodtruck} -d ${POSTGRES_DB:-foodtruck}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  foodtruck-data:
+  postgres-data:
+    name: foodtruck-postgres-data
 
 networks:
   foodtruck-net:
+    name: foodtruck-network
     driver: bridge
