@@ -142,6 +142,63 @@ class ApiClient {
       }
     )
   }
+
+  // Admin endpoints (require ADMIN role)
+  async verifyAdmin(username: string, password: string): Promise<{ content: Reservation[] }> {
+    // Verify admin credentials by calling an admin-only endpoint
+    return this.requestWithAuth('/admin/reservations?size=1', username, password)
+  }
+
+  async getAdminReservations(
+    date: string,
+    username: string,
+    password: string,
+    locationId?: string
+  ): Promise<Reservation[]> {
+    const locationParam = locationId ? `&locationId=${locationId}` : ''
+    const response = await this.requestWithAuth<{ content: Reservation[] }>(
+      `/admin/reservations?date=${date}${locationParam}&size=100`,
+      username,
+      password
+    )
+    return response.content
+  }
+
+  async createLocation(
+    name: string,
+    address: string,
+    username: string,
+    password: string
+  ): Promise<Location> {
+    return this.requestWithAuth(
+      '/admin/locations',
+      username,
+      password,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, address }),
+      }
+    )
+  }
+
+  async updateLocation(
+    locationId: string,
+    name: string,
+    address: string,
+    active: boolean,
+    username: string,
+    password: string
+  ): Promise<Location> {
+    return this.requestWithAuth(
+      `/admin/locations/${locationId}`,
+      username,
+      password,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ name, address, active }),
+      }
+    )
+  }
 }
 
 export const api = new ApiClient()

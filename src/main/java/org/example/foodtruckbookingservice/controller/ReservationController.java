@@ -178,11 +178,16 @@ public class ReservationController {
     @GetMapping("/admin/reservations")
     public ResponseEntity<Page<ReservationResponse>> getAllReservations(
             @RequestParam(required = false) UUID locationId,
+            @RequestParam(required = false) LocalDate date,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        log.info("GET /api/v1/admin/reservations - locationId: {}", locationId);
+        log.info("GET /api/v1/admin/reservations - locationId: {}, date: {}", locationId, date);
 
         Page<ReservationResponse> reservations;
-        if (locationId != null) {
+        if (date != null && locationId != null) {
+            reservations = reservationService.getReservationsForLocationAndDate(locationId, date, pageable);
+        } else if (date != null) {
+            reservations = reservationService.getReservationsForDate(date, pageable);
+        } else if (locationId != null) {
             reservations = reservationService.getReservationsForLocation(locationId, pageable);
         } else {
             reservations = reservationService.getAllReservations(pageable);

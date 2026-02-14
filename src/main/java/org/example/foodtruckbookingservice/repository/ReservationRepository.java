@@ -130,4 +130,25 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
      * @return count of reservations
      */
     long countByLocationIdAndReservationDate(UUID locationId, LocalDate reservationDate);
+
+    /**
+     * Find all reservations for a specific date (paginated).
+     * Used for admin dashboard.
+     *
+     * @param reservationDate the date
+     * @param pageable        pagination info
+     * @return page of reservations
+     */
+    Page<Reservation> findByReservationDate(LocalDate reservationDate, Pageable pageable);
+
+    /**
+     * Find all reservations for a location on a date (paginated).
+     * Used for admin dashboard.
+     *
+     * @param locationId      the location ID
+     * @param reservationDate the date
+     * @param pageable        pagination info
+     * @return page of reservations
+     */
+    Page<Reservation> findByLocationIdAndReservationDate(UUID locationId, LocalDate reservationDate, Pageable pageable);
 }

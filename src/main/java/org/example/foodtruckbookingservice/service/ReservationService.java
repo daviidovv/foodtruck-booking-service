@@ -200,6 +200,24 @@ public class ReservationService {
     }
 
     /**
+     * Get reservations for a specific date (paginated).
+     */
+    public Page<ReservationResponse> getReservationsForDate(LocalDate date, Pageable pageable) {
+        log.debug("Fetching reservations for date: {}", date);
+        return reservationRepository.findByReservationDate(date, pageable)
+                .map(reservationMapper::toResponse);
+    }
+
+    /**
+     * Get reservations for a location and date (paginated).
+     */
+    public Page<ReservationResponse> getReservationsForLocationAndDate(UUID locationId, LocalDate date, Pageable pageable) {
+        log.debug("Fetching reservations for location {} on date {}", locationId, date);
+        return reservationRepository.findByLocationIdAndReservationDate(locationId, date, pageable)
+                .map(reservationMapper::toResponse);
+    }
+
+    /**
      * Update reservation status.
      */
     @Transactional
