@@ -80,9 +80,10 @@ public class LocationController {
     @GetMapping("/locations/{locationId}/availability")
     public ResponseEntity<AvailabilityResponse> checkAvailability(
             @PathVariable UUID locationId,
-            @RequestParam LocalDate date) {
-        log.info("GET /api/v1/locations/{}/availability?date={}", locationId, date);
-        AvailabilityResponse availability = locationService.checkAvailability(locationId, date);
+            @RequestParam(required = false) LocalDate date) {
+        LocalDate queryDate = date != null ? date : LocalDate.now();
+        log.info("GET /api/v1/locations/{}/availability?date={}", locationId, queryDate);
+        AvailabilityResponse availability = locationService.checkAvailability(locationId, queryDate);
         return ResponseEntity.ok(availability);
     }
 

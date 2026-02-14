@@ -36,6 +36,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/reservations").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reservations/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/reservations/code/**").permitAll()
 
                         // Actuator health endpoint
                         .requestMatchers("/actuator/health").permitAll()
