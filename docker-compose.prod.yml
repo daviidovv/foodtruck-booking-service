@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: foodtruck-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/foodtruck
+      - SPRING_DATASOURCE_USERNAME=foodtruck
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-changeme}
+      - SPRING_PROFILES_ACTIVE=prod
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - foodtruck-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: foodtruck-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=foodtruck
+      - POSTGRES_USER=foodtruck
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+    volumes:
+      - foodtruck-data:/var/lib/postgresql/data
+    networks:
+      - foodtruck-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodtruck -d foodtruck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  foodtruck-data:
+
+networks:
+  foodtruck-net:
+    driver: bridge
