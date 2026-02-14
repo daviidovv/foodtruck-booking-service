@@ -5,19 +5,23 @@
 
 set -e
 
+# Zum Projektverzeichnis wechseln
+cd "$(dirname "$0")/.."
+PROJECT_DIR=$(pwd)
+
 echo "🚀 Starting local development environment..."
 
 # Prüfen ob PostgreSQL läuft
-if ! docker ps | grep -q postgres; then
+if ! docker ps | grep -q foodtruck-dev-db; then
     echo "📦 Starting PostgreSQL..."
     docker-compose up -d db
+    echo "⏳ Waiting for database..."
     sleep 5
 fi
 
 # Backend starten (im Hintergrund)
 echo "☕ Starting Spring Boot backend..."
-cd "$(dirname "$0")/.."
-mvn spring-boot:run -Dspring-boot.run.profiles=local &
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local &
 BACKEND_PID=$!
 
 # Warten bis Backend bereit ist
@@ -33,7 +37,7 @@ done
 # Frontend starten
 echo "⚛️  Starting React frontend..."
 cd frontend
-npm run dev &
+NODE_OPTIONS="--dns-result-order=ipv4first" npm run dev &
 FRONTEND_PID=$!
 
 echo ""
@@ -46,7 +50,13 @@ echo ""
 echo "Press Ctrl+C to stop all services"
 
 # Cleanup bei Beendigung
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit" SIGINT SIGTERM
+cleanup() {
+    echo ""
+    echo "🛑 Stopping services..."
+    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
 
 # Warten
 wait
