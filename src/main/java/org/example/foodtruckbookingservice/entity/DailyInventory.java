@@ -3,10 +3,12 @@ package org.example.foodtruckbookingservice.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -17,40 +19,41 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * Entity representing a foodtruck location (e.g., "Innenstadt", "Gewerbegebiet").
+ * Entity representing the daily chicken inventory for a location.
  *
- * <p>Locations are the primary organizational unit for reservations.
- * Each location has weekly schedules defining operating hours and capacity.
+ * <p>Staff enters the total chickens available each morning.
+ * Available capacity = totalChickens - sum of reserved chickens (CONFIRMED reservations).
  */
 @Entity
-@Table(name = "location",
-        uniqueConstraints = @UniqueConstraint(name = "uk_location_name", columnNames = "name"))
+@Table(name = "daily_inventory",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_daily_inventory_location_date",
+                columnNames = {"location_id", "date"}))
 @EntityListeners(AuditingEntityListener.class)
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Location {
+public class DailyInventory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 200)
-    private String name;
-
-    @Column(nullable = false, length = 500)
-    private String address;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @Column(nullable = false)
-    @Builder.Default
-    private Boolean active = true;
+    private LocalDate date;
+
+    @Column(name = "total_chickens", nullable = false)
+    private Integer totalChickens;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -59,16 +62,4 @@ public class Location {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    @OneToMany(mappedBy = "location")
-    @Builder.Default
-    private List<LocationSchedule> schedules = new ArrayList<>();
-
-    @OneToMany(mappedBy = "location")
-    @Builder.Default
-    private List<Reservation> reservations = new ArrayList<>();
-
-    @OneToMany(mappedBy = "location")
-    @Builder.Default
-    private List<DailyInventory> inventories = new ArrayList<>();
 }

@@ -1,6 +1,6 @@
 # API Contracts - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-02-11
+Letzte Aktualisierung: 2026-02-14
 
 ---
 
@@ -134,13 +134,13 @@ Gibt den Wochenplan eines Standorts zurück.
 
 ### GET /api/v1/locations/{locationId}/availability
 
-Prüft die Verfügbarkeit eines Standorts für ein bestimmtes Datum.
+Prüft die Live-Verfügbarkeit eines Standorts für HEUTE (nur Same-Day!).
 
 **Path Parameters:**
 - `locationId` (UUID, required): ID des Standorts
 
 **Query Parameters:**
-- `date` (string, required, format: YYYY-MM-DD): Datum für Verfügbarkeitsprüfung
+- `date` (string, optional, default: heute, format: YYYY-MM-DD): Datum (nur heute erlaubt!)
 
 **Response (200 OK):**
 ```json
@@ -152,11 +152,26 @@ Prüft die Verfügbarkeit eines Standorts für ein bestimmtes Datum.
   "dayName": "Samstag",
   "openingTime": "11:00",
   "closingTime": "20:00",
-  "totalCapacity": 50,
-  "reservedCapacity": 35,
-  "availableCapacity": 15,
+  "inventorySet": true,
+  "totalChickens": 50,
+  "reservedChickens": 35,
+  "availableChickens": 15,
   "isOpen": true,
   "availabilityStatus": "AVAILABLE"
+}
+```
+
+**Falls kein Vorrat eingetragen:**
+```json
+{
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "locationName": "Innenstadt",
+  "date": "2026-02-14",
+  "inventorySet": false,
+  "availableChickens": 0,
+  "isOpen": true,
+  "availabilityStatus": "NOT_AVAILABLE",
+  "message": "Vorrat wurde noch nicht eingetragen"
 }
 ```
 
@@ -164,18 +179,19 @@ Prüft die Verfügbarkeit eines Standorts für ein bestimmtes Datum.
 - `AVAILABLE`: Kapazität vorhanden (>30%)
 - `LIMITED`: Begrenzte Kapazität (10-30%)
 - `ALMOST_FULL`: Fast ausgebucht (<10%)
-- `FULL`: Keine Kapazität mehr
+- `SOLD_OUT`: Ausverkauft (0 verfügbar)
+- `NOT_AVAILABLE`: Kein Vorrat eingetragen
 - `CLOSED`: Standort geschlossen an diesem Tag
 
 **Errors:**
-- `400 Bad Request`: Ungültiges Datumsformat
+- `400 Bad Request`: Datum ist nicht heute (nur Same-Day erlaubt)
 - `404 Not Found`: Standort nicht gefunden
 
 ---
 
 ### POST /api/v1/reservations
 
-Erstellt eine neue Reservierung.
+Erstellt eine neue Reservierung für HEUTE. Wird automatisch bestätigt wenn Vorrat verfügbar.
 
 **Request Body:**
 ```json
@@ -185,7 +201,7 @@ Erstellt eine neue Reservierung.
   "customerEmail": "max@example.com",
   "chickenCount": 2,
   "friesCount": 3,
-  "pickupTime": "2026-02-14T14:30:00",
+  "pickupTime": "14:30",
   "notes": "Bitte extra knusprig"
 }
 ```
@@ -196,31 +212,40 @@ Erstellt eine neue Reservierung.
 - `customerEmail`: Optional, gültiges E-Mail-Format, max. 255 Zeichen
 - `chickenCount`: Required, 0-50, chickenCount + friesCount > 0
 - `friesCount`: Required, 0-50, chickenCount + friesCount > 0
-- `pickupTime`: Required, mind. 30 Min. in der Zukunft, innerhalb Öffnungszeiten
+- `pickupTime`: **Optional**, Format HH:mm, falls angegeben innerhalb Öffnungszeiten
 - `notes`: Optional, max. 500 Zeichen
+- **Nur Same-Day**: Reservierung ist immer für heute
 
 **Response (201 Created):**
 ```json
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
+  "confirmationCode": "HUHN-K4M7",
   "locationId": "550e8400-e29b-41d4-a716-446655440000",
   "locationName": "Innenstadt",
   "customerName": "Max Mustermann",
   "customerEmail": "max@example.com",
   "chickenCount": 2,
   "friesCount": 3,
-  "pickupTime": "2026-02-14T14:30:00",
-  "status": "PENDING",
+  "reservationDate": "2026-02-14",
+  "pickupTime": "14:30",
+  "status": "CONFIRMED",
   "notes": "Bitte extra knusprig",
-  "createdAt": "2026-02-11T10:30:00Z"
+  "createdAt": "2026-02-14T10:30:00Z",
+  "message": "Reservierung erfolgreich! Bitte notieren Sie Ihren Bestätigungscode: HUHN-K4M7"
 }
 ```
+
+**Wichtig:**
+- `status` ist immer `CONFIRMED` (automatische Bestätigung!)
+- `confirmationCode` wird automatisch generiert (8 Zeichen)
+- `pickupTime` kann `null` sein wenn nicht angegeben
 
 **Errors:**
 - `400 Bad Request`: Validierungsfehler
 - `404 Not Found`: Standort nicht gefunden
-- `409 Conflict`: Kapazität überschritten
-- `422 Unprocessable Entity`: Business Rule Verletzung (z.B. außerhalb Öffnungszeiten)
+- `409 Conflict`: Nicht genug Vorrat verfügbar
+- `422 Unprocessable Entity`: Kein Vorrat eingetragen oder außerhalb Öffnungszeiten
 
 **Error Response (400 - Validierung):**
 ```json
@@ -302,6 +327,72 @@ Ruft eine Reservierung anhand der ID ab.
 
 ---
 
+### GET /api/v1/reservations/code/{confirmationCode}
+
+Ruft eine Reservierung anhand des Bestätigungscodes ab.
+
+**Path Parameters:**
+- `confirmationCode` (string, required): Bestätigungscode (z.B. "HUHN-K4M7")
+
+**Response (200 OK):**
+```json
+{
+  "id": "770e8400-e29b-41d4-a716-446655440000",
+  "confirmationCode": "HUHN-K4M7",
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "locationName": "Innenstadt",
+  "locationAddress": "Marktplatz 1, 12345 Musterstadt",
+  "customerName": "Max Mustermann",
+  "chickenCount": 2,
+  "friesCount": 3,
+  "reservationDate": "2026-02-14",
+  "pickupTime": "14:30",
+  "status": "CONFIRMED",
+  "notes": "Bitte extra knusprig",
+  "createdAt": "2026-02-14T10:30:00Z",
+  "canCancel": true
+}
+```
+
+**Hinweis:**
+- `canCancel` ist `true` wenn Status = CONFIRMED (nicht abgeholt/storniert)
+- E-Mail wird aus Datenschutzgründen nicht zurückgegeben
+
+**Errors:**
+- `404 Not Found`: Reservierung mit diesem Code nicht gefunden
+
+---
+
+### DELETE /api/v1/reservations/code/{confirmationCode}
+
+Storniert eine Reservierung anhand des Bestätigungscodes.
+
+**Path Parameters:**
+- `confirmationCode` (string, required): Bestätigungscode (z.B. "HUHN-K4M7")
+
+**Response (200 OK):**
+```json
+{
+  "id": "770e8400-e29b-41d4-a716-446655440000",
+  "confirmationCode": "HUHN-K4M7",
+  "status": "CANCELLED",
+  "previousStatus": "CONFIRMED",
+  "message": "Reservierung wurde erfolgreich storniert. Die Hähnchen sind wieder verfügbar."
+}
+```
+
+**Business Rules:**
+- Stornierung ist jederzeit möglich (keine Frist)
+- Nur CONFIRMED → CANCELLED erlaubt
+- Bei Stornierung wird Vorrat automatisch freigegeben
+- Bereits abgeschlossene/stornierte Reservierungen können nicht erneut storniert werden
+
+**Errors:**
+- `400 Bad Request`: Reservierung kann nicht storniert werden (falscher Status)
+- `404 Not Found`: Reservierung mit diesem Code nicht gefunden
+
+---
+
 ## Protected API (Mitarbeiter - ROLE_STAFF)
 
 ### POST /api/v1/auth/login
@@ -337,9 +428,10 @@ Authentifiziert einen Mitarbeiter.
 Gibt alle Reservierungen des Tages für den Standort des Mitarbeiters zurück.
 
 **Query Parameters:**
+- `locationId` (UUID, required): ID des Standorts
 - `date` (string, optional, default: heute, format: YYYY-MM-DD): Datum
-- `status` (string, optional): Filter nach Status (PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW)
-- `search` (string, optional): Suche nach Kundenname
+- `status` (string, optional): Filter nach Status (CONFIRMED, CANCELLED, COMPLETED, NO_SHOW)
+- `search` (string, optional): Suche nach Kundenname oder Bestätigungscode
 - `page` (int, optional, default: 0): Seitennummer
 - `size` (int, optional, default: 20): Einträge pro Seite
 - `sort` (string, optional, default: pickupTime,asc): Sortierung
@@ -350,14 +442,16 @@ Gibt alle Reservierungen des Tages für den Standort des Mitarbeiters zurück.
   "content": [
     {
       "id": "770e8400-e29b-41d4-a716-446655440000",
+      "confirmationCode": "HUHN-K4M7",
       "customerName": "Max Mustermann",
       "customerEmail": "max@example.com",
       "chickenCount": 2,
       "friesCount": 3,
-      "pickupTime": "2026-02-14T14:30:00",
-      "status": "PENDING",
+      "reservationDate": "2026-02-14",
+      "pickupTime": "14:30",
+      "status": "CONFIRMED",
       "notes": "Bitte extra knusprig",
-      "createdAt": "2026-02-11T10:30:00Z"
+      "createdAt": "2026-02-14T10:30:00Z"
     }
   ],
   "pageable": {
@@ -377,6 +471,10 @@ Gibt alle Reservierungen des Tages für den Standort des Mitarbeiters zurück.
   "last": false
 }
 ```
+
+**Hinweis:**
+- `pickupTime` kann `null` sein (Kunde hat keine Zeit angegeben)
+- Sortierung: Reservierungen ohne Abholzeit am Ende
 
 **Errors:**
 - `401 Unauthorized`: Nicht authentifiziert
@@ -400,8 +498,9 @@ Gibt alle Reservierungen des Tages für den Standort des Mitarbeiters zurück.
 ```
 
 **Erlaubte Status-Übergänge:**
-- `PENDING` → `CONFIRMED`, `CANCELLED`
 - `CONFIRMED` → `COMPLETED`, `NO_SHOW`, `CANCELLED`
+
+**⚠️ Hinweis:** Es gibt keinen PENDING-Status mehr. Reservierungen starten direkt als CONFIRMED.
 
 **Response (200 OK):**
 ```json
@@ -475,6 +574,92 @@ Gibt die aktuelle Kapazität des Standorts zurück.
 
 **Errors:**
 - `401 Unauthorized`: Nicht authentifiziert
+
+---
+
+### POST /api/v1/staff/inventory
+
+Setzt den täglichen Hähnchen-Vorrat für heute.
+
+**Request Body:**
+```json
+{
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "totalChickens": 50
+}
+```
+
+**Validierungsregeln:**
+- `locationId`: Required, muss existieren und zum Mitarbeiter gehören
+- `totalChickens`: Required, >= 0
+
+**Response (200 OK / 201 Created):**
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440000",
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "locationName": "Innenstadt",
+  "date": "2026-02-14",
+  "totalChickens": 50,
+  "reservedChickens": 12,
+  "availableChickens": 38,
+  "createdAt": "2026-02-14T08:00:00Z",
+  "updatedAt": "2026-02-14T08:00:00Z",
+  "message": "Vorrat erfolgreich eingetragen"
+}
+```
+
+**Business Rules:**
+- Ein Eintrag pro Standort pro Tag
+- Bei wiederholtem Aufruf: Update statt Insert
+- Bestehende Reservierungen bleiben gültig
+- Warnung wenn neuer Vorrat < bereits reserviert
+
+**Errors:**
+- `400 Bad Request`: Validierungsfehler
+- `401 Unauthorized`: Nicht authentifiziert
+- `403 Forbidden`: Mitarbeiter gehört nicht zu diesem Standort
+
+---
+
+### GET /api/v1/staff/inventory
+
+Gibt den aktuellen Vorrat für den Standort des Mitarbeiters zurück.
+
+**Query Parameters:**
+- `locationId` (UUID, required): ID des Standorts
+- `date` (string, optional, default: heute): Datum
+
+**Response (200 OK):**
+```json
+{
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "locationName": "Innenstadt",
+  "date": "2026-02-14",
+  "inventorySet": true,
+  "totalChickens": 50,
+  "reservedChickens": 35,
+  "availableChickens": 15,
+  "reservationCount": 18,
+  "utilizationPercent": 70.0,
+  "status": "LIMITED"
+}
+```
+
+**Falls kein Vorrat eingetragen:**
+```json
+{
+  "locationId": "550e8400-e29b-41d4-a716-446655440000",
+  "locationName": "Innenstadt",
+  "date": "2026-02-14",
+  "inventorySet": false,
+  "message": "Bitte Tagesvorrat eintragen!"
+}
+```
+
+**Errors:**
+- `401 Unauthorized`: Nicht authentifiziert
+- `403 Forbidden`: Mitarbeiter gehört nicht zu diesem Standort
 
 ---
 
@@ -806,6 +991,7 @@ Alle Listen-Endpoints nutzen Spring Data Pageable:
 | Datum | Version | Änderung |
 |-------|---------|----------|
 | 2026-02-11 | 1.0 | Initial erstellt basierend auf REQ-001 bis REQ-019 |
+| 2026-02-14 | 2.0 | Auto-Accept, confirmationCode, Same-Day only, Inventory-Endpoints, Lookup/Cancel by Code |
 
 ---
 

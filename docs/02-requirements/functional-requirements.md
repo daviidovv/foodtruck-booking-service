@@ -1,6 +1,6 @@
 # Functional Requirements - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-01-19
+Letzte Aktualisierung: 2026-02-14
 
 ---
 
@@ -31,26 +31,31 @@ Kunden müssen sehen können, welcher Foodtruck-Standort an welchem Wochentag ve
 **Verknüpfung**: US-002
 
 **Beschreibung**:
-Kunden müssen eine Reservierung für Hähnchen und Pommes erstellen können mit Angabe von Kundenname, optionaler E-Mail, Anzahl Produkte und gewünschter Abholzeit.
+Kunden müssen eine Reservierung für Hähnchen und Pommes erstellen können mit Angabe von Kundenname, optionaler E-Mail, Anzahl Produkte und optionaler Abholzeit. Reservierungen werden automatisch bestätigt solange Vorrat verfügbar ist.
 
 **Akzeptanzkriterien**:
-- [ ] Kunde kann Standort auswählen (basierend auf REQ-001)
+- [ ] Kunde kann Standort auswählen für HEUTE (nur Same-Day!)
 - [ ] Kunde gibt Kundenname an (Pflichtfeld, max. 200 Zeichen)
 - [ ] Kunde kann optional E-Mail-Adresse angeben (max. 255 Zeichen)
 - [ ] Kunde wählt Anzahl Hähnchen (min. 0, max. 50)
 - [ ] Kunde wählt Anzahl Pommes (min. 0, max. 50)
 - [ ] Mindestens ein Produkt (Hähnchen oder Pommes) muss ausgewählt sein
-- [ ] Kunde wählt Abholzeit (innerhalb Öffnungszeiten)
-- [ ] System erstellt Reservierung mit Status `PENDING`
-- [ ] System speichert Erstellungszeitpunkt (`created_at`)
-- [ ] System gibt Reservierungs-ID zurück
+- [ ] Kunde kann optional Abholzeit angeben (innerhalb Öffnungszeiten)
+- [ ] System prüft ob genug Vorrat vorhanden ist
+- [ ] System erstellt Reservierung mit Status `CONFIRMED` (automatisch!)
+- [ ] System generiert eindeutigen Bestätigungscode (z.B. `HUHN-K4M7`)
+- [ ] System reduziert verfügbaren Vorrat sofort
+- [ ] System gibt Bestätigungscode zurück
 
 **Business Rules**:
 - E-Mail ist OPTIONAL (Design-Entscheidung: niedrige Hürde für Kunden)
-- Status bei Erstellung: `PENDING`
+- Abholzeit ist OPTIONAL (Kunde kann kommen wann er will)
+- **Status bei Erstellung: `CONFIRMED`** (automatisch, kein PENDING!)
+- Nur Same-Day-Reservierungen möglich (kein Vorausbuchen)
+- Reservierung nur wenn: Vorrat (daily_inventory) - Reserviert >= chickenCount
 - `chicken_count + fries_count` muss > 0 sein
 
-**Datengrundlage**: `reservation` Tabelle
+**Datengrundlage**: `reservation`, `daily_inventory` Tabellen
 
 ---
 
@@ -60,19 +65,46 @@ Kunden müssen eine Reservierung für Hähnchen und Pommes erstellen können mit
 **Verknüpfung**: US-002, REQ-002
 
 **Beschreibung**:
-Kunden erhalten nach erfolgreicher Reservierung eine Bestätigung mit allen relevanten Details. Falls E-Mail angegeben wurde, wird zusätzlich eine Bestätigungsmail versendet.
+Kunden erhalten nach erfolgreicher Reservierung einen Bestätigungscode, mit dem sie ihre Reservierung verwalten können. Falls E-Mail angegeben wurde, wird zusätzlich eine Bestätigungsmail versendet.
 
 **Akzeptanzkriterien**:
 - [ ] System zeigt Bestätigungsseite mit allen Reservierungsdetails an
-- [ ] Reservierungs-ID wird prominent angezeigt
-- [ ] Falls E-Mail vorhanden: Bestätigungsmail wird versendet
-- [ ] Bestätigungsmail enthält: Reservierungs-ID, Standort, Abholzeit, Produktanzahl, Kundenname
-- [ ] Falls keine E-Mail: Hinweis, dass Reservierungs-ID notiert werden soll
+- [ ] **Bestätigungscode wird GROSS und PROMINENT angezeigt** (z.B. `HUHN-K4M7`)
+- [ ] Hinweis: "Bitte notieren Sie diesen Code für Änderungen/Stornierung"
+- [ ] Falls E-Mail vorhanden: Bestätigungsmail mit Code wird versendet
+- [ ] Bestätigungsmail enthält: Bestätigungscode, Standort, Abholzeit (falls angegeben), Produktanzahl, Kundenname
 - [ ] Kunde kann Bestätigungsseite ausdrucken/speichern
 
 **Technische Hinweise**:
+- Bestätigungscode: 8 Zeichen, alphanumerisch, unique
 - E-Mail-Versand nur wenn `customer_email IS NOT NULL`
-- E-Mail-Template mit allen relevanten Infos
+- E-Mail-Template mit allen relevanten Infos und Code
+
+### REQ-003a: Reservierung per Code nachschlagen (NEU)
+**Priorität**: Hoch
+**Phase**: MVP
+
+**Beschreibung**:
+Kunden können ihre Reservierung mit dem Bestätigungscode online nachschlagen.
+
+**Akzeptanzkriterien**:
+- [ ] Eingabefeld für Bestätigungscode auf der Website
+- [ ] Bei gültigem Code: Reservierungsdetails anzeigen
+- [ ] Bei ungültigem Code: Fehlermeldung
+
+### REQ-003b: Reservierung stornieren (NEU)
+**Priorität**: Hoch
+**Phase**: MVP
+
+**Beschreibung**:
+Kunden können ihre Reservierung jederzeit mit dem Bestätigungscode stornieren.
+
+**Akzeptanzkriterien**:
+- [ ] Stornieren-Button bei Reservierungsansicht
+- [ ] Bestätigung: "Möchten Sie wirklich stornieren?"
+- [ ] Bei Stornierung: Status auf CANCELLED setzen
+- [ ] Vorrat wird wieder freigegeben
+- [ ] Stornierung ist jederzeit möglich (keine Frist)
 
 ---
 
@@ -82,20 +114,22 @@ Kunden erhalten nach erfolgreicher Reservierung eine Bestätigung mit allen rele
 **Verknüpfung**: US-001, REQ-001
 
 **Beschreibung**:
-Kunden können vor Reservierung prüfen, wann und wo die Foodtrucks verfügbar sind und welche Kapazitäten noch vorhanden sind.
+Kunden sehen für HEUTE welche Standorte geöffnet sind und wie viele Hähnchen noch verfügbar sind (Live-Anzeige).
 
 **Akzeptanzkriterien**:
-- [ ] Kalender-ähnliche Ansicht zeigt Standorte pro Wochentag
+- [ ] Anzeige der heute geöffneten Standorte
 - [ ] Öffnungszeiten pro Standort werden angezeigt
-- [ ] Verfügbare Kapazität wird angezeigt (z.B. "Noch 15 Hähnchen verfügbar")
-- [ ] Ausgebuchte Zeiten werden deutlich markiert
-- [ ] Nur zukünftige Zeitslots werden angezeigt
+- [ ] **Live-Verfügbarkeit**: "Noch X Hähnchen verfügbar" (aktualisiert sich)
+- [ ] Falls kein Vorrat eingetragen: "Noch nicht verfügbar - bitte später wiederkommen"
+- [ ] Falls Vorrat = 0: "Ausverkauft" deutlich markiert
 - [ ] Mobile-optimierte Darstellung
 
 **Business Rules**:
-- Kapazität basiert auf `location_schedule.daily_capacity`
-- Bereits reservierte Mengen werden abgezogen
+- **Kapazität basiert auf `daily_inventory.total_chickens`** (vom Mitarbeiter eingetragen!)
+- Verfügbar = `total_chickens - SUM(reservierte Hähnchen)`
+- Nur Standorte mit Vorratseintrag für heute werden angezeigt
 - Nur `active=true` Standorte anzeigen
+- **Nur Same-Day**: Keine Anzeige für andere Tage
 
 ---
 
@@ -151,28 +185,16 @@ Mitarbeiter sehen alle Reservierungen des aktuellen Tages für ihren zugewiesene
 
 ---
 
-### REQ-007: Reservierung bestätigen
-**Priorität**: Hoch
-**Phase**: MVP
-**Verknüpfung**: US-013
+### REQ-007: ~~Reservierung bestätigen~~ ENTFÄLLT
+**Priorität**: ~~Hoch~~ ENTFÄLLT
+**Phase**: ~~MVP~~
 
-**Beschreibung**:
-Mitarbeiter können eine Reservierung von PENDING auf CONFIRMED setzen, um dem Kunden zu garantieren, dass die Bestellung verfügbar ist.
+**⚠️ ENTFÄLLT: Reservierungen werden automatisch bestätigt!**
 
-**Akzeptanzkriterien**:
-- [ ] Button "Bestätigen" bei Reservierungen mit Status PENDING
-- [ ] Status wird auf CONFIRMED gesetzt
-- [ ] `updated_at` wird aktualisiert
-- [ ] Visuelles Feedback (Toast-Nachricht, Farbwechsel)
-- [ ] Falls E-Mail vorhanden: Optional Bestätigungsmail senden
-- [ ] Aktion ist nur für PENDING-Reservierungen möglich
+Da der Workflow nun Auto-Accept ist, gibt es keinen PENDING-Status mehr.
+Reservierungen werden sofort CONFIRMED wenn der Vorrat ausreicht.
 
-**Business Rules**:
-- Nur PENDING → CONFIRMED erlaubt
-- Mitarbeiter kann nur Reservierungen seines Standorts bestätigen
-- Capacity-Check: Genug Kapazität vorhanden?
-
-**Status-Transition**: `PENDING → CONFIRMED`
+Mitarbeiter müssen Reservierungen NICHT mehr manuell bestätigen.
 
 ---
 
@@ -235,22 +257,42 @@ Mitarbeiter können Reservierungen als abgeholt (COMPLETED) oder nicht erschiene
 **Verknüpfung**: US-016
 
 **Beschreibung**:
-Mitarbeiter sehen auf einen Blick die verfügbare Kapazität ihres Standorts für den aktuellen Tag.
+Mitarbeiter sehen auf einen Blick den Vorrat und die verfügbare Kapazität ihres Standorts für den aktuellen Tag.
 
 **Akzeptanzkriterien**:
-- [ ] Dashboard zeigt Gesamtkapazität des Tages (aus `location_schedule.daily_capacity`)
-- [ ] Dashboard zeigt reservierte Menge (Summe aller PENDING + CONFIRMED Reservierungen)
-- [ ] Dashboard zeigt verfügbare Restkapazität
+- [ ] Dashboard zeigt eingetragenen Vorrat (aus `daily_inventory.total_chickens`)
+- [ ] Dashboard zeigt reservierte Menge (Summe aller CONFIRMED Reservierungen)
+- [ ] Dashboard zeigt verfügbare Restmenge
 - [ ] Farbliche Kennzeichnung: Grün (>30%), Gelb (10-30%), Rot (<10%)
-- [ ] Echtzeit-Update bei Statusänderungen
-- [ ] Aufschlüsselung: Hähnchen separat
+- [ ] Echtzeit-Update bei neuen Reservierungen/Stornierungen
+- [ ] Falls kein Vorrat eingetragen: Warnung anzeigen
 
 **Berechnung**:
 ```
-Gesamtkapazität = location_schedule.daily_capacity (für aktuellen Tag)
-Reserviert = SUM(chicken_count) WHERE status IN ('PENDING', 'CONFIRMED') AND pickup_time = TODAY
-Verfügbar = Gesamtkapazität - Reserviert
+Eingetragener Vorrat = daily_inventory.total_chickens (für heute)
+Reserviert = SUM(chicken_count) WHERE status = 'CONFIRMED' AND reservation_date = TODAY
+Verfügbar = Eingetragener Vorrat - Reserviert
 ```
+
+### REQ-010a: Tagesvorrat eintragen (NEU)
+**Priorität**: Hoch
+**Phase**: MVP
+
+**Beschreibung**:
+Mitarbeiter können morgens den täglichen Hähnchen-Vorrat für ihren Standort eintragen.
+
+**Akzeptanzkriterien**:
+- [ ] Eingabefeld für Anzahl Hähnchen
+- [ ] Speichern-Button
+- [ ] Erfolgsbestätigung
+- [ ] Vorrat kann jederzeit geändert werden (Nachschub, Ausfall)
+- [ ] Änderung wird sofort wirksam (Live-Update für Kunden)
+- [ ] Validierung: Vorrat >= 0
+
+**Business Rules**:
+- Ein Eintrag pro Standort pro Tag
+- Ohne Vorratseintrag: Keine Reservierungen möglich
+- Bei Änderung: Bestehende Reservierungen bleiben gültig
 
 ---
 
@@ -400,20 +442,22 @@ Administratoren können Auslastungsstatistiken pro Standort einsehen zur Kapazit
 **Verknüpfung**: REQ-002
 
 **Beschreibung**:
-Das System validiert, dass Abholzeiten nur innerhalb gültiger Öffnungszeiten und in der Zukunft liegen.
+Das System validiert Reservierungen für den aktuellen Tag. Abholzeit ist optional.
 
 **Akzeptanzkriterien**:
-- [ ] Abholzeit muss in der Zukunft liegen (min. 30 Minuten voraus)
-- [ ] Abholzeit muss innerhalb Öffnungszeiten des Standorts liegen
-- [ ] Wochentag der Abholzeit muss mit `location_schedule.day_of_week` übereinstimmen
-- [ ] Standort muss an diesem Tag aktiv sein (`location_schedule.active=true`)
+- [ ] Reservierung nur für HEUTE möglich (Same-Day only)
+- [ ] Standort muss heute geöffnet sein (`location_schedule.active=true`)
+- [ ] Falls Abholzeit angegeben: Muss innerhalb Öffnungszeiten liegen
+- [ ] Falls Abholzeit angegeben: Muss in der Zukunft liegen
 - [ ] Fehlermeldungen sind klar und benutzerfreundlich
 
 **Validierungsregel**:
 ```
-pickup_time >= NOW() + 30 Minuten
-pickup_time BETWEEN opening_time AND closing_time
-day_of_week(pickup_time) = location_schedule.day_of_week
+reservation_date = TODAY (Pflicht)
+IF pickup_time IS NOT NULL:
+    pickup_time > NOW()
+    pickup_time BETWEEN opening_time AND closing_time
+day_of_week(TODAY) = location_schedule.day_of_week
 location_schedule.active = true
 ```
 
@@ -422,23 +466,29 @@ location_schedule.active = true
 ### REQ-018: Kapazitätsprüfung
 **Priorität**: Hoch
 **Phase**: MVP
-**Verknüpfung**: REQ-002, REQ-007
+**Verknüpfung**: REQ-002
 
 **Beschreibung**:
-Das System verhindert Überbuchungen durch Kapazitätsprüfung bei Reservierungserstellung und Bestätigung.
+Das System verhindert Überbuchungen durch Vorratsprüfung bei Reservierungserstellung.
 
 **Akzeptanzkriterien**:
-- [ ] Bei Reservierungserstellung: Prüfung ob genug Kapazität vorhanden
-- [ ] Bei Bestätigung (REQ-007): Erneute Prüfung (Race Condition vermeiden)
-- [ ] Fehlermeldung: "Kapazität ausgeschöpft, nur noch X Hähnchen verfügbar"
-- [ ] Kunde sieht alternative Zeitslots
+- [ ] Bei Reservierungserstellung: Prüfung ob genug Vorrat vorhanden
+- [ ] Fehlermeldung: "Leider nicht genug verfügbar, nur noch X Hähnchen da"
+- [ ] Falls Vorrat = 0: "Ausverkauft"
+- [ ] Falls kein Vorrat eingetragen: "Reservierung aktuell nicht möglich"
 - [ ] Pommes-Kapazität wird im MVP nicht geprüft (unbegrenzt)
 
 **Validierungsregel**:
 ```
-Verfügbare Kapazität = daily_capacity - SUM(chicken_count WHERE status IN ('PENDING', 'CONFIRMED'))
-Neue Reservierung erlaubt nur wenn: chicken_count <= Verfügbare Kapazität
+Vorrat = daily_inventory.total_chickens (für heute)
+Reserviert = SUM(chicken_count WHERE status = 'CONFIRMED' AND reservation_date = TODAY)
+Verfügbar = Vorrat - Reserviert
+Neue Reservierung erlaubt nur wenn: chicken_count <= Verfügbar
 ```
+
+**Race Condition Handling**:
+- Pessimistic Locking beim Prüfen und Speichern
+- Falls Race Condition: Fehlermeldung und Retry-Hinweis
 
 ---
 
@@ -493,10 +543,16 @@ Warnung wenn existiert:
 
 ## Offene Punkte
 
-**Zu klären**:
-- [ ] Stornierungsfrist für Kunden (Phase 2)
-- [ ] Benachrichtigungssystem bei Statusänderungen (Phase 2)
-- [ ] Multi-Tenant-Support falls weiterer Foodtruck hinzukommt (Phase 2)
+**Geklärt** (Stand 2026-02-14):
+- [x] Stornierung: Jederzeit möglich (keine Frist)
+- [x] Reservierungszeitraum: Nur Same-Day
+- [x] Abholzeit: Optional
+- [x] Workflow: Auto-Accept (kein PENDING)
+- [x] Kapazität: Täglicher Vorrat vom Mitarbeiter
+
+**Offen für Phase 2**:
+- [ ] Benachrichtigungssystem bei Statusänderungen
+- [ ] Multi-Tenant-Support falls weiterer Foodtruck hinzukommt
 
 ---
 

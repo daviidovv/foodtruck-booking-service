@@ -24,8 +24,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +33,9 @@ import java.util.UUID;
 
 /**
  * Service for reservation operations.
+ *
+ * <p>Workflow: Reservations are auto-confirmed if inventory is available.
+ * Only same-day reservations are allowed.
  */
 @Slf4j
 @Service
@@ -44,18 +47,18 @@ public class ReservationService {
     private final LocationRepository locationRepository;
     private final LocationScheduleRepository scheduleRepository;
     private final ReservationMapper reservationMapper;
+    private final InventoryService inventoryService;
 
-    private static final Set<ReservationStatus> ACTIVE_STATUSES =
-            Set.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
-
-    private static final int MIN_MINUTES_BEFORE_PICKUP = 30;
+    private static final String CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int CODE_LENGTH = 8;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     /**
-     * Create a new reservation.
+     * Create a new reservation (auto-confirmed if inventory available).
      */
     @Transactional
     public ReservationResponse createReservation(CreateReservationRequest request) {
-        log.info("Creating reservation for location {} at {}", request.getLocationId(), request.getPickupTime());
+        log.info("Creating reservation for location {}", request.getLocationId());
 
         // Validate location exists and is active
         Location location = locationRepository.findById(request.getLocationId())
@@ -74,20 +77,48 @@ public class ReservationService {
                     "MIN_ORDER_QUANTITY");
         }
 
-        // Validate pickup time
-        validatePickupTime(request.getPickupTime(), request.getLocationId());
+        // Validate location is open today
+        LocalDate today = LocalDate.now();
+        int dayOfWeek = today.getDayOfWeek().getValue();
+        LocationSchedule schedule = scheduleRepository
+                .findByLocationIdAndDayOfWeekAndActiveTrue(request.getLocationId(), dayOfWeek)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Location is closed today",
+                        "LOCATION_CLOSED"));
 
-        // Check capacity
-        checkCapacity(request.getLocationId(), request.getPickupTime().toLocalDate(), request.getChickenCount());
+        // Validate pickup time if provided
+        if (request.getPickupTime() != null) {
+            validatePickupTime(request.getPickupTime(), schedule);
+        }
 
-        // Create reservation
-        Reservation reservation = reservationMapper.toEntity(request);
+        // Check inventory is set and has enough chickens
+        if (!inventoryService.isInventorySet(request.getLocationId())) {
+            throw new BusinessRuleViolationException(
+                    "Reservierung aktuell nicht möglich - Vorrat wurde noch nicht eingetragen",
+                    "INVENTORY_NOT_SET");
+        }
+
+        int available = inventoryService.getAvailableChickens(request.getLocationId());
+        if (request.getChickenCount() > available) {
+            throw new CapacityExceededException(request.getChickenCount(), available);
+        }
+
+        // Generate unique confirmation code
+        String confirmationCode = generateUniqueConfirmationCode();
+
+        // Create reservation (auto-confirmed)
+        Reservation reservation = reservationMapper.toEntity(request, confirmationCode);
         reservation.setLocation(location);
 
         Reservation saved = reservationRepository.save(reservation);
-        log.info("Created reservation with id: {}", saved.getId());
+        log.info("Created reservation with id: {} and code: {}", saved.getId(), confirmationCode);
 
-        return reservationMapper.toResponse(saved);
+        ReservationResponse response = reservationMapper.toResponse(saved);
+        response.setMessage(String.format(
+                "Reservierung erfolgreich! Bitte notieren Sie Ihren Bestätigungscode: %s",
+                confirmationCode));
+
+        return response;
     }
 
     /**
@@ -100,16 +131,51 @@ public class ReservationService {
     }
 
     /**
+     * Get reservation by confirmation code.
+     */
+    public ReservationResponse getReservationByCode(String confirmationCode) {
+        log.debug("Fetching reservation by code: {}", confirmationCode);
+        Reservation reservation = reservationRepository.findByConfirmationCode(confirmationCode.toUpperCase())
+                .orElseThrow(() -> new ReservationNotFoundException(
+                        "Reservation with code " + confirmationCode + " not found"));
+        return reservationMapper.toResponse(reservation);
+    }
+
+    /**
+     * Cancel reservation by confirmation code.
+     */
+    @Transactional
+    public ReservationResponse cancelByCode(String confirmationCode) {
+        log.info("Cancelling reservation by code: {}", confirmationCode);
+
+        Reservation reservation = reservationRepository.findByConfirmationCode(confirmationCode.toUpperCase())
+                .orElseThrow(() -> new ReservationNotFoundException(
+                        "Reservation with code " + confirmationCode + " not found"));
+
+        if (!reservation.getStatus().canCancel()) {
+            throw new InvalidStatusTransitionException(
+                    reservation.getStatus(),
+                    ReservationStatus.CANCELLED);
+        }
+
+        reservation.setStatus(ReservationStatus.CANCELLED);
+        Reservation saved = reservationRepository.save(reservation);
+
+        log.info("Cancelled reservation {} with code {}", saved.getId(), confirmationCode);
+
+        ReservationResponse response = reservationMapper.toResponse(saved);
+        response.setMessage("Reservierung wurde erfolgreich storniert. Die Hähnchen sind wieder verfügbar.");
+        return response;
+    }
+
+    /**
      * Get reservations for a location on a specific date.
      */
     public List<ReservationResponse> getReservationsForLocationAndDate(UUID locationId, LocalDate date) {
         log.debug("Fetching reservations for location {} on {}", locationId, date);
 
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
-
         return reservationRepository
-                .findByLocationIdAndPickupTimeBetweenOrderByPickupTimeAsc(locationId, startOfDay, endOfDay)
+                .findByLocationIdAndDate(locationId, date)
                 .stream()
                 .map(reservationMapper::toResponse)
                 .toList();
@@ -147,15 +213,6 @@ public class ReservationService {
             throw new InvalidStatusTransitionException(reservation.getStatus(), request.getStatus());
         }
 
-        // If confirming, check capacity is still available
-        if (reservation.getStatus() == ReservationStatus.PENDING &&
-                request.getStatus() == ReservationStatus.CONFIRMED) {
-            checkCapacity(
-                    reservation.getLocation().getId(),
-                    reservation.getPickupTime().toLocalDate(),
-                    reservation.getChickenCount());
-        }
-
         reservation.setStatus(request.getStatus());
         if (request.getNotes() != null && !request.getNotes().isBlank()) {
             reservation.setNotes(request.getNotes());
@@ -168,7 +225,7 @@ public class ReservationService {
     }
 
     /**
-     * Get capacity information for a location on a specific date.
+     * Get capacity/inventory information for a location on a specific date.
      */
     public CapacityResponse getCapacity(UUID locationId, LocalDate date) {
         log.debug("Getting capacity for location {} on {}", locationId, date);
@@ -176,108 +233,108 @@ public class ReservationService {
         Location location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new LocationNotFoundException(locationId));
 
+        // Use inventory service for today
+        if (date.equals(LocalDate.now())) {
+            return buildCapacityFromInventory(location, date);
+        }
+
+        // For other dates, return empty (only same-day)
+        return buildEmptyCapacityResponse(location, date);
+    }
+
+    private void validatePickupTime(LocalTime pickupTime, LocationSchedule schedule) {
+        // Must be in the future
+        LocalTime now = LocalTime.now();
+        if (pickupTime.isBefore(now)) {
+            throw new BusinessRuleViolationException(
+                    "Abholzeit muss in der Zukunft liegen",
+                    "PICKUP_IN_PAST");
+        }
+
+        // Must be within opening hours
+        if (pickupTime.isBefore(schedule.getOpeningTime()) ||
+                pickupTime.isAfter(schedule.getClosingTime())) {
+            throw new BusinessRuleViolationException(
+                    String.format("Abholzeit muss innerhalb der Öffnungszeiten liegen (%s - %s)",
+                            schedule.getOpeningTime(), schedule.getClosingTime()),
+                    "OUTSIDE_OPENING_HOURS");
+        }
+    }
+
+    private String generateUniqueConfirmationCode() {
+        String code;
+        int attempts = 0;
+        do {
+            code = generateRandomCode();
+            attempts++;
+            if (attempts > 100) {
+                throw new IllegalStateException("Unable to generate unique confirmation code");
+            }
+        } while (reservationRepository.existsByConfirmationCode(code));
+        return code;
+    }
+
+    private String generateRandomCode() {
+        StringBuilder sb = new StringBuilder(CODE_LENGTH);
+        for (int i = 0; i < CODE_LENGTH; i++) {
+            sb.append(CODE_CHARACTERS.charAt(RANDOM.nextInt(CODE_CHARACTERS.length())));
+        }
+        return sb.toString();
+    }
+
+    private Reservation findReservationOrThrow(UUID reservationId) {
+        return reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new ReservationNotFoundException(reservationId));
+    }
+
+    private CapacityResponse buildCapacityFromInventory(Location location, LocalDate date) {
         int dayOfWeek = date.getDayOfWeek().getValue();
         LocationSchedule schedule = scheduleRepository
-                .findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
+                .findByLocationIdAndDayOfWeekAndActiveTrue(location.getId(), dayOfWeek)
                 .orElse(null);
 
         if (schedule == null) {
             return buildEmptyCapacityResponse(location, date);
         }
 
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+        var inventoryResponse = inventoryService.getInventory(location.getId(), date);
 
-        // Get reserved counts by status
-        int pendingCount = getPendingChickenCount(locationId, startOfDay, endOfDay);
-        int confirmedCount = getConfirmedChickenCount(locationId, startOfDay, endOfDay);
-        int totalReserved = pendingCount + confirmedCount;
-        int available = Math.max(0, schedule.getDailyCapacity() - totalReserved);
-        double utilization = (double) totalReserved / schedule.getDailyCapacity() * 100;
+        if (!inventoryResponse.getInventorySet()) {
+            return CapacityResponse.builder()
+                    .locationId(location.getId())
+                    .locationName(location.getName())
+                    .date(date)
+                    .totalCapacity(0)
+                    .reserved(CapacityResponse.ReservedCapacity.builder()
+                            .pending(0)
+                            .confirmed(0)
+                            .total(0)
+                            .build())
+                    .available(0)
+                    .utilizationPercent(0.0)
+                    .status(CapacityResponse.CapacityStatus.FULL)
+                    .build();
+        }
+
+        int totalChickens = inventoryResponse.getTotalChickens();
+        int reservedChickens = inventoryResponse.getReservedChickens();
+        int available = inventoryResponse.getAvailableChickens();
+        double utilization = inventoryResponse.getUtilizationPercent();
 
         return CapacityResponse.builder()
                 .locationId(location.getId())
                 .locationName(location.getName())
                 .date(date)
-                .totalCapacity(schedule.getDailyCapacity())
+                .totalCapacity(totalChickens)
                 .reserved(CapacityResponse.ReservedCapacity.builder()
-                        .pending(pendingCount)
-                        .confirmed(confirmedCount)
-                        .total(totalReserved)
+                        .pending(0)  // No more PENDING
+                        .confirmed(reservedChickens)
+                        .total(reservedChickens)
                         .build())
                 .available(available)
                 .utilizationPercent(Math.round(utilization * 10) / 10.0)
-                .status(calculateCapacityStatus(available, schedule.getDailyCapacity()))
+                .status(calculateCapacityStatus(available, totalChickens))
                 .build();
-    }
-
-    private void validatePickupTime(LocalDateTime pickupTime, UUID locationId) {
-        // Must be at least 30 minutes in the future
-        LocalDateTime minPickupTime = LocalDateTime.now().plusMinutes(MIN_MINUTES_BEFORE_PICKUP);
-        if (pickupTime.isBefore(minPickupTime)) {
-            throw new BusinessRuleViolationException(
-                    String.format("Pickup time must be at least %d minutes in the future", MIN_MINUTES_BEFORE_PICKUP),
-                    "PICKUP_TOO_SOON");
-        }
-
-        // Must be within opening hours
-        LocalDate date = pickupTime.toLocalDate();
-        int dayOfWeek = date.getDayOfWeek().getValue();
-
-        LocationSchedule schedule = scheduleRepository
-                .findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
-                .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Location is closed on this day",
-                        "LOCATION_CLOSED"));
-
-        LocalTime pickupTimeOfDay = pickupTime.toLocalTime();
-        if (pickupTimeOfDay.isBefore(schedule.getOpeningTime()) ||
-                pickupTimeOfDay.isAfter(schedule.getClosingTime())) {
-            throw new BusinessRuleViolationException(
-                    String.format("Pickup time must be within opening hours (%s - %s)",
-                            schedule.getOpeningTime(), schedule.getClosingTime()),
-                    "OUTSIDE_OPENING_HOURS");
-        }
-    }
-
-    private void checkCapacity(UUID locationId, LocalDate date, int requestedChickenCount) {
-        int dayOfWeek = date.getDayOfWeek().getValue();
-
-        LocationSchedule schedule = scheduleRepository
-                .findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
-                .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Location is closed on this day",
-                        "LOCATION_CLOSED"));
-
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
-
-        Integer reserved = reservationRepository.sumChickenCountByLocationAndDateAndStatus(
-                locationId, startOfDay, endOfDay, ACTIVE_STATUSES);
-        int reservedCount = reserved != null ? reserved : 0;
-
-        int available = schedule.getDailyCapacity() - reservedCount;
-
-        if (requestedChickenCount > available) {
-            throw new CapacityExceededException(requestedChickenCount, available);
-        }
-    }
-
-    private int getPendingChickenCount(UUID locationId, LocalDateTime start, LocalDateTime end) {
-        Integer count = reservationRepository.sumChickenCountByLocationAndDateAndStatus(
-                locationId, start, end, Set.of(ReservationStatus.PENDING));
-        return count != null ? count : 0;
-    }
-
-    private int getConfirmedChickenCount(UUID locationId, LocalDateTime start, LocalDateTime end) {
-        Integer count = reservationRepository.sumChickenCountByLocationAndDateAndStatus(
-                locationId, start, end, Set.of(ReservationStatus.CONFIRMED));
-        return count != null ? count : 0;
-    }
-
-    private Reservation findReservationOrThrow(UUID reservationId) {
-        return reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new ReservationNotFoundException(reservationId));
     }
 
     private CapacityResponse buildEmptyCapacityResponse(Location location, LocalDate date) {

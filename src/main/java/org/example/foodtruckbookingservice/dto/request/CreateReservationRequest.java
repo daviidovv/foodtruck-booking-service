@@ -1,7 +1,6 @@
 package org.example.foodtruckbookingservice.dto.request;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,11 +11,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
  * Request DTO for creating a new reservation.
+ *
+ * <p>Reservations are only for the same day (today).
+ * Pickup time is optional - customers can come whenever they want.
  */
 @Data
 @Builder
@@ -45,9 +47,12 @@ public class CreateReservationRequest {
     @Max(value = 50, message = "Fries count must not exceed 50")
     private Integer friesCount;
 
-    @NotNull(message = "Pickup time is required")
-    @Future(message = "Pickup time must be in the future")
-    private LocalDateTime pickupTime;
+    /**
+     * Optional pickup time (HH:mm format).
+     * If not specified, customer can come whenever they want.
+     * Must be within opening hours if specified.
+     */
+    private LocalTime pickupTime;
 
     @Size(max = 500, message = "Notes must not exceed 500 characters")
     private String notes;

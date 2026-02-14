@@ -20,7 +20,9 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
@@ -28,6 +30,11 @@ import java.util.UUID;
  *
  * <p>Note: customer_email is intentionally nullable to lower the barrier
  * for customers. This is a design decision documented in vision.md.
+ *
+ * <p>Note: pickup_time is OPTIONAL - customers can come whenever they want.
+ *
+ * <p>Reservations are auto-confirmed if inventory is available.
+ * There is no PENDING status in the normal workflow.
  */
 @Entity
 @Table(name = "reservation")
@@ -46,6 +53,13 @@ public class Reservation {
     @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
+    /**
+     * Unique confirmation code for customer lookup and cancellation.
+     * Format: 8 uppercase alphanumeric characters (e.g., "HUHNK4M7")
+     */
+    @Column(name = "confirmation_code", nullable = false, unique = true, length = 8)
+    private String confirmationCode;
+
     @Column(name = "customer_name", nullable = false, length = 200)
     private String customerName;
 
@@ -62,13 +76,23 @@ public class Reservation {
     @Column(name = "fries_count", nullable = false)
     private Integer friesCount;
 
-    @Column(name = "pickup_time", nullable = false)
-    private LocalDateTime pickupTime;
+    /**
+     * The date of the reservation. Only same-day reservations are allowed.
+     */
+    @Column(name = "reservation_date", nullable = false)
+    private LocalDate reservationDate;
+
+    /**
+     * Pickup time is OPTIONAL - customers can come whenever they want.
+     * If specified, must be within opening hours.
+     */
+    @Column(name = "pickup_time")
+    private LocalTime pickupTime;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default
-    private ReservationStatus status = ReservationStatus.PENDING;
+    private ReservationStatus status = ReservationStatus.CONFIRMED;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

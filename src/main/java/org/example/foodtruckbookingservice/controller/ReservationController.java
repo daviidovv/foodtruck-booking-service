@@ -4,9 +4,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.foodtruckbookingservice.dto.request.CreateReservationRequest;
+import org.example.foodtruckbookingservice.dto.request.SetInventoryRequest;
 import org.example.foodtruckbookingservice.dto.request.UpdateStatusRequest;
 import org.example.foodtruckbookingservice.dto.response.CapacityResponse;
+import org.example.foodtruckbookingservice.dto.response.InventoryResponse;
 import org.example.foodtruckbookingservice.dto.response.ReservationResponse;
+import org.example.foodtruckbookingservice.service.InventoryService;
 import org.example.foodtruckbookingservice.service.ReservationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +18,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,12 +44,14 @@ import java.util.UUID;
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final InventoryService inventoryService;
 
     // ==================== Public Endpoints ====================
 
     /**
      * Create a new reservation.
      * Public endpoint - no authentication required.
+     * Reservations are auto-confirmed if inventory is available.
      */
     @PostMapping("/reservations")
     public ResponseEntity<ReservationResponse> createReservation(
@@ -64,6 +70,30 @@ public class ReservationController {
     public ResponseEntity<ReservationResponse> getReservationById(@PathVariable UUID reservationId) {
         log.info("GET /api/v1/reservations/{}", reservationId);
         ReservationResponse reservation = reservationService.getReservationById(reservationId);
+        return ResponseEntity.ok(reservation);
+    }
+
+    /**
+     * Get reservation by confirmation code.
+     * Public endpoint - allows customers to look up their reservation.
+     */
+    @GetMapping("/reservations/code/{confirmationCode}")
+    public ResponseEntity<ReservationResponse> getReservationByCode(
+            @PathVariable String confirmationCode) {
+        log.info("GET /api/v1/reservations/code/{}", confirmationCode);
+        ReservationResponse reservation = reservationService.getReservationByCode(confirmationCode);
+        return ResponseEntity.ok(reservation);
+    }
+
+    /**
+     * Cancel reservation by confirmation code.
+     * Public endpoint - allows customers to cancel their reservation anytime.
+     */
+    @DeleteMapping("/reservations/code/{confirmationCode}")
+    public ResponseEntity<ReservationResponse> cancelReservationByCode(
+            @PathVariable String confirmationCode) {
+        log.info("DELETE /api/v1/reservations/code/{}", confirmationCode);
+        ReservationResponse reservation = reservationService.cancelByCode(confirmationCode);
         return ResponseEntity.ok(reservation);
     }
 
@@ -110,6 +140,33 @@ public class ReservationController {
         log.info("GET /api/v1/staff/capacity - location: {}, date: {}", locationId, queryDate);
         CapacityResponse capacity = reservationService.getCapacity(locationId, queryDate);
         return ResponseEntity.ok(capacity);
+    }
+
+    /**
+     * Set daily chicken inventory.
+     * Staff endpoint - requires ROLE_STAFF or ROLE_ADMIN.
+     */
+    @PostMapping("/staff/inventory")
+    public ResponseEntity<InventoryResponse> setInventory(
+            @Valid @RequestBody SetInventoryRequest request) {
+        log.info("POST /api/v1/staff/inventory - location: {}, chickens: {}",
+                request.getLocationId(), request.getTotalChickens());
+        InventoryResponse inventory = inventoryService.setInventory(request);
+        return ResponseEntity.ok(inventory);
+    }
+
+    /**
+     * Get current inventory for a location.
+     * Staff endpoint - requires ROLE_STAFF or ROLE_ADMIN.
+     */
+    @GetMapping("/staff/inventory")
+    public ResponseEntity<InventoryResponse> getInventory(
+            @RequestParam UUID locationId,
+            @RequestParam(required = false) LocalDate date) {
+        LocalDate queryDate = date != null ? date : LocalDate.now();
+        log.info("GET /api/v1/staff/inventory - location: {}, date: {}", locationId, queryDate);
+        InventoryResponse inventory = inventoryService.getInventory(locationId, queryDate);
+        return ResponseEntity.ok(inventory);
     }
 
     // ==================== Admin Endpoints ====================

@@ -1,6 +1,6 @@
 # Datenmodell - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-02-11
+Letzte Aktualisierung: 2026-02-14
 
 ---
 
@@ -41,29 +41,31 @@ Implementiere die Reservation-Entity basierend auf:
             │
             │ 1
             │
-            ├──────────────────────────┐
-            │                          │
-            │ N                        │ N
-            ▼                          ▼
-┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐
-│          location_schedule          │    │           reservation               │
-├─────────────────────────────────────┤    ├─────────────────────────────────────┤
-│ id (UUID, PK)                       │    │ id (UUID, PK)                       │
-│ location_id (UUID, FK)              │    │ location_id (UUID, FK)              │
-│ day_of_week (INT)                   │    │ customer_name (VARCHAR 200)         │
-│ opening_time (TIME)                 │    │ customer_email (VARCHAR 255, NULL)  │
-│ closing_time (TIME)                 │    │ chicken_count (INT)                 │
-│ daily_capacity (INT)                │    │ fries_count (INT)                   │
-│ active (BOOLEAN)                    │    │ pickup_time (TIMESTAMP)             │
-└─────────────────────────────────────┘    │ status (VARCHAR 30)                 │
-                                           │ notes (TEXT, NULL)                  │
-                                           │ created_at (TIMESTAMP)              │
-                                           │ updated_at (TIMESTAMP)              │
-                                           └─────────────────────────────────────┘
+            ├──────────────────────────┬──────────────────────────┐
+            │                          │                          │
+            │ N                        │ N                        │ N
+            ▼                          ▼                          ▼
+┌───────────────────────────┐  ┌───────────────────────────┐  ┌───────────────────────────┐
+│    location_schedule      │  │     daily_inventory       │  │       reservation         │
+├───────────────────────────┤  ├───────────────────────────┤  ├───────────────────────────┤
+│ id (UUID, PK)             │  │ id (UUID, PK)             │  │ id (UUID, PK)             │
+│ location_id (UUID, FK)    │  │ location_id (UUID, FK)    │  │ location_id (UUID, FK)    │
+│ day_of_week (INT)         │  │ date (DATE)               │  │ confirmation_code (8)     │
+│ opening_time (TIME)       │  │ total_chickens (INT)      │  │ customer_name (200)       │
+│ closing_time (TIME)       │  │ created_at (TIMESTAMP)    │  │ customer_email (255,NULL) │
+│ daily_capacity (INT)      │  │ updated_at (TIMESTAMP)    │  │ chicken_count (INT)       │
+│ active (BOOLEAN)          │  └───────────────────────────┘  │ fries_count (INT)         │
+└───────────────────────────┘                                 │ pickup_time (TS, NULL)    │
+                                                              │ status (VARCHAR 30)       │
+                                                              │ notes (TEXT, NULL)        │
+                                                              │ created_at (TIMESTAMP)    │
+                                                              │ updated_at (TIMESTAMP)    │
+                                                              └───────────────────────────┘
 ```
 
 **Beziehungen:**
 - `location` 1:N `location_schedule` - Ein Standort hat mehrere Wochentags-Schedules
+- `location` 1:N `daily_inventory` - Ein Standort hat pro Tag einen Vorratseintrag
 - `location` 1:N `reservation` - Ein Standort hat mehrere Reservierungen
 
 ---
@@ -198,11 +200,13 @@ public class LocationSchedule {
 |--------|----------|-------------|--------------|
 | `id` | UUID | PK, NOT NULL | Primärschlüssel |
 | `location_id` | UUID | FK, NOT NULL | Referenz auf Standort |
+| `confirmation_code` | VARCHAR(8) | NOT NULL, UNIQUE | Bestätigungscode (z.B. HUHN-K4M7) |
 | `customer_name` | VARCHAR(200) | NOT NULL | Kundenname |
 | `customer_email` | VARCHAR(255) | NULL | E-Mail (optional!) |
 | `chicken_count` | INT | NOT NULL, CHECK >= 0 | Anzahl Hähnchen |
 | `fries_count` | INT | NOT NULL, CHECK >= 0 | Anzahl Pommes |
-| `pickup_time` | TIMESTAMP | NOT NULL | Gewünschte Abholzeit |
+| `reservation_date` | DATE | NOT NULL | Tag der Reservierung (nur Same-Day!) |
+| `pickup_time` | TIME | NULL | Gewünschte Abholzeit (optional!) |
 | `status` | VARCHAR(30) | NOT NULL | Reservierungsstatus |
 | `notes` | TEXT | NULL | Zusätzliche Notizen |
 | `created_at` | TIMESTAMP | NOT NULL | Erstellungszeitpunkt |
@@ -210,17 +214,21 @@ public class LocationSchedule {
 
 **Indizes:**
 - `pk_reservation` (PRIMARY KEY): `id`
+- `uk_reservation_confirmation_code` (UNIQUE): `confirmation_code` - Eindeutiger Bestätigungscode
 - `idx_reservation_location_id` (INDEX): `location_id` - Schnelle Filterung nach Standort
-- `idx_reservation_pickup_time` (INDEX): `pickup_time` - Schnelle Sortierung nach Abholzeit
+- `idx_reservation_date` (INDEX): `reservation_date` - Schnelle Sortierung nach Tag
 - `idx_reservation_status` (INDEX): `status` - Schnelle Filterung nach Status
-- `idx_reservation_location_date` (INDEX): `location_id, DATE(pickup_time)` - Tagesansicht
+- `idx_reservation_location_date` (INDEX): `location_id, reservation_date` - Tagesansicht
 - `fk_reservation_location` (FOREIGN KEY): `location_id` → `location.id`
 
 **Constraints:**
+- `confirmation_code` ist UNIQUE und NOT NULL - wird automatisch generiert
 - `customer_email` ist OPTIONAL (NULL erlaubt) - Design-Entscheidung!
+- `pickup_time` ist OPTIONAL (NULL erlaubt) - Kunde kann kommen wann er will
 - `chicken_count >= 0` und `fries_count >= 0`
 - `chicken_count + fries_count > 0` - Mindestens ein Produkt
 - `status` muss ein gültiger Enum-Wert sein
+- `reservation_date` muss heute sein (nur Same-Day-Reservierungen)
 
 **JPA Entity Hinweise:**
 ```java
@@ -235,6 +243,9 @@ public class Reservation {
     @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
+    @Column(name = "confirmation_code", nullable = false, unique = true, length = 8)
+    private String confirmationCode;  // z.B. "HUHN-K4M7"
+
     @Column(name = "customer_name", nullable = false, length = 200)
     private String customerName;
 
@@ -247,8 +258,11 @@ public class Reservation {
     @Column(name = "fries_count", nullable = false)
     private Integer friesCount;
 
-    @Column(name = "pickup_time", nullable = false)
-    private LocalDateTime pickupTime;
+    @Column(name = "reservation_date", nullable = false)
+    private LocalDate reservationDate;  // Nur heute!
+
+    @Column(name = "pickup_time")  // NULL erlaubt!
+    private LocalTime pickupTime;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -256,6 +270,64 @@ public class Reservation {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+}
+```
+
+---
+
+### daily_inventory
+
+**Zweck:** Speichert den täglichen Hähnchen-Vorrat pro Standort, eingetragen vom Mitarbeiter
+
+**Spalten:**
+
+| Spalte | Datentyp | Constraints | Beschreibung |
+|--------|----------|-------------|--------------|
+| `id` | UUID | PK, NOT NULL | Primärschlüssel |
+| `location_id` | UUID | FK, NOT NULL | Referenz auf Standort |
+| `date` | DATE | NOT NULL | Datum des Vorrats |
+| `total_chickens` | INT | NOT NULL, CHECK >= 0 | Vom Mitarbeiter eingetragene Anzahl |
+| `created_at` | TIMESTAMP | NOT NULL | Erstellungszeitpunkt |
+| `updated_at` | TIMESTAMP | NOT NULL | Letzte Änderung |
+
+**Indizes:**
+- `pk_daily_inventory` (PRIMARY KEY): `id`
+- `uk_daily_inventory_location_date` (UNIQUE): `location_id, date` - Ein Eintrag pro Standort/Tag
+- `fk_daily_inventory_location` (FOREIGN KEY): `location_id` → `location.id`
+
+**Business Rules:**
+- Mitarbeiter trägt morgens den Vorrat ein
+- Kann jederzeit angepasst werden (Nachschub, Ausfall)
+- Verfügbare Kapazität = `total_chickens - SUM(reservierte Hähnchen)`
+- Wenn kein Eintrag für heute existiert → Reservierungen nicht möglich
+
+**JPA Entity Hinweise:**
+```java
+@Entity
+@Table(name = "daily_inventory",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"location_id", "date"}))
+public class DailyInventory {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
+
+    @Column(nullable = false)
+    private LocalDate date;
+
+    @Column(name = "total_chickens", nullable = false)
+    private Integer totalChickens;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -277,45 +349,42 @@ Erlaubte Werte für `reservation.status`:
 
 | Wert | Beschreibung | Nächste erlaubte Status |
 |------|--------------|-------------------------|
-| `PENDING` | Reservierung eingegangen, wartet auf Bestätigung | CONFIRMED, CANCELLED |
-| `CONFIRMED` | Von Mitarbeiter bestätigt, Produkte reserviert | COMPLETED, NO_SHOW, CANCELLED |
-| `CANCELLED` | Storniert (durch Mitarbeiter) | - (Endstatus) |
+| `CONFIRMED` | Reservierung bestätigt (automatisch bei Erstellung!) | COMPLETED, NO_SHOW, CANCELLED |
+| `CANCELLED` | Storniert (durch Kunde oder Mitarbeiter) | - (Endstatus) |
 | `COMPLETED` | Kunde hat abgeholt | - (Endstatus) |
 | `NO_SHOW` | Kunde nicht erschienen | - (Endstatus) |
 
+**⚠️ Wichtig: Kein PENDING mehr!**
+- Reservierungen werden automatisch CONFIRMED wenn Vorrat > 0
+- Der Workflow ist jetzt: Kunde reserviert → Sofort CONFIRMED → Mitarbeiter schließt ab
+
 **Status-Übergangsdiagramm:**
 ```
-                    ┌──────────────┐
-                    │   PENDING    │
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-              ▼            │            ▼
-     ┌────────────┐        │     ┌────────────┐
-     │ CANCELLED  │◄───────┼─────│ CONFIRMED  │
-     └────────────┘        │     └─────┬──────┘
-                           │           │
-                           │     ┌─────┴─────┐
-                           │     │           │
-                           │     ▼           ▼
-                           │ ┌──────────┐ ┌─────────┐
-                           │ │COMPLETED │ │ NO_SHOW │
-                           │ └──────────┘ └─────────┘
+     Kunde reserviert
+            │
+            ▼
+     ┌────────────┐
+     │ CONFIRMED  │◄─── Startpunkt (automatisch)
+     └─────┬──────┘
+           │
+     ┌─────┼─────────┐
+     │     │         │
+     ▼     ▼         ▼
+┌──────┐ ┌──────┐ ┌─────────┐
+│CANCEL│ │COMPL.│ │ NO_SHOW │
+└──────┘ └──────┘ └─────────┘
 ```
 
 **Java Enum:**
 ```java
 public enum ReservationStatus {
-    PENDING,
-    CONFIRMED,
-    CANCELLED,
-    COMPLETED,
-    NO_SHOW;
+    CONFIRMED,   // Automatisch bei Erstellung
+    CANCELLED,   // Storniert
+    COMPLETED,   // Abgeholt
+    NO_SHOW;     // Nicht erschienen
 
     public boolean canTransitionTo(ReservationStatus newStatus) {
         return switch (this) {
-            case PENDING -> newStatus == CONFIRMED || newStatus == CANCELLED;
             case CONFIRMED -> newStatus == COMPLETED || newStatus == NO_SHOW || newStatus == CANCELLED;
             case CANCELLED, COMPLETED, NO_SHOW -> false; // Endstatus
         };
@@ -331,7 +400,9 @@ public enum ReservationStatus {
 
 | Version | Dateiname | Beschreibung |
 |---------|-----------|--------------|
-| V1 | V1__create_initial_schema.sql | Initiales Schema mit allen 3 Tabellen |
+| V1 | V1__create_initial_schema.sql | Initiales Schema mit 3 Tabellen |
+| V2 | V2__insert_test_data.sql | Testdaten für Entwicklung |
+| V3 | V3__add_inventory_and_confirmation_code.sql | daily_inventory Tabelle, confirmation_code, Reservation-Anpassungen |
 
 ### V1__create_initial_schema.sql
 
@@ -398,6 +469,56 @@ CREATE INDEX idx_reservation_status ON reservation(status);
 CREATE INDEX idx_location_schedule_location_day ON location_schedule(location_id, day_of_week);
 ```
 
+### V3__add_inventory_and_confirmation_code.sql
+
+```sql
+-- Daily Inventory Table (Täglicher Vorrat)
+CREATE TABLE daily_inventory (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    location_id UUID NOT NULL,
+    date DATE NOT NULL,
+    total_chickens INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_daily_inventory_location
+        FOREIGN KEY (location_id) REFERENCES location(id),
+    CONSTRAINT uk_daily_inventory_location_date
+        UNIQUE (location_id, date),
+    CONSTRAINT chk_total_chickens
+        CHECK (total_chickens >= 0)
+);
+
+CREATE INDEX idx_daily_inventory_location_date ON daily_inventory(location_id, date);
+
+-- Add confirmation_code to reservation
+ALTER TABLE reservation ADD COLUMN confirmation_code VARCHAR(8);
+
+-- Generate codes for existing reservations (for migration)
+UPDATE reservation SET confirmation_code = UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 8))
+WHERE confirmation_code IS NULL;
+
+-- Now make it NOT NULL and UNIQUE
+ALTER TABLE reservation ALTER COLUMN confirmation_code SET NOT NULL;
+ALTER TABLE reservation ADD CONSTRAINT uk_reservation_confirmation_code UNIQUE (confirmation_code);
+
+-- Add reservation_date column (derived from pickup_time for existing data)
+ALTER TABLE reservation ADD COLUMN reservation_date DATE;
+UPDATE reservation SET reservation_date = DATE(pickup_time) WHERE reservation_date IS NULL;
+ALTER TABLE reservation ALTER COLUMN reservation_date SET NOT NULL;
+
+-- Make pickup_time optional (change from TIMESTAMP to TIME, allow NULL)
+ALTER TABLE reservation ALTER COLUMN pickup_time DROP NOT NULL;
+ALTER TABLE reservation ALTER COLUMN pickup_time TYPE TIME USING pickup_time::TIME;
+
+-- Update index for new date column
+DROP INDEX IF EXISTS idx_reservation_pickup_time;
+CREATE INDEX idx_reservation_date ON reservation(reservation_date);
+CREATE INDEX idx_reservation_location_date ON reservation(location_id, reservation_date);
+
+-- Remove PENDING status from existing reservations (migrate to CONFIRMED)
+UPDATE reservation SET status = 'CONFIRMED' WHERE status = 'PENDING';
+```
+
 ---
 
 ## Beispiel-Daten
@@ -436,18 +557,17 @@ INSERT INTO reservation (location_id, customer_name, customer_email, chicken_cou
 
 ## Wichtige Queries
 
-### Verfügbare Kapazität berechnen
+### Verfügbare Kapazität berechnen (NEU: basiert auf daily_inventory)
 ```sql
 SELECT
-    ls.daily_capacity - COALESCE(SUM(r.chicken_count), 0) AS available_capacity
-FROM location_schedule ls
-LEFT JOIN reservation r ON r.location_id = ls.location_id
-    AND DATE(r.pickup_time) = :date
-    AND r.status IN ('PENDING', 'CONFIRMED')
-WHERE ls.location_id = :locationId
-    AND ls.day_of_week = EXTRACT(ISODOW FROM :date::DATE)
-    AND ls.active = true
-GROUP BY ls.daily_capacity;
+    di.total_chickens - COALESCE(SUM(r.chicken_count), 0) AS available_chickens
+FROM daily_inventory di
+LEFT JOIN reservation r ON r.location_id = di.location_id
+    AND r.reservation_date = di.date
+    AND r.status = 'CONFIRMED'  -- Nur CONFIRMED zählt (kein PENDING mehr)
+WHERE di.location_id = :locationId
+    AND di.date = :date
+GROUP BY di.total_chickens;
 ```
 
 ### Reservierungen eines Standorts für heute
@@ -455,8 +575,15 @@ GROUP BY ls.daily_capacity;
 SELECT r.*
 FROM reservation r
 WHERE r.location_id = :locationId
-    AND DATE(r.pickup_time) = CURRENT_DATE
-ORDER BY r.pickup_time ASC;
+    AND r.reservation_date = CURRENT_DATE
+ORDER BY r.pickup_time ASC NULLS LAST;  -- NULL pickup_time am Ende
+```
+
+### Reservierung per Bestätigungscode finden
+```sql
+SELECT r.*
+FROM reservation r
+WHERE r.confirmation_code = :code;
 ```
 
 ### Statistik: Auslastung pro Standort
@@ -513,6 +640,7 @@ CREATE TABLE daily_capacity_override (
 | Datum | Version | Änderung |
 |-------|---------|----------|
 | 2026-02-11 | 1.0 | Initiales Schema dokumentiert |
+| 2026-02-14 | 2.0 | daily_inventory Tabelle, confirmation_code, pickup_time optional, PENDING entfernt |
 
 ---
 

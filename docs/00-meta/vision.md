@@ -1,6 +1,6 @@
 # Projekt-Vision: Foodtruck Reservierungssystem
 
-Letzte Aktualisierung: 2026-01-19
+Letzte Aktualisierung: 2026-02-14
 
 ## Geschäftsziel
 
@@ -83,26 +83,35 @@ Mitarbeiter sehen auf einen Blick:
 ### Kunde (Web-Interface)
 
 **Muss**:
-- Standort auswählen basierend auf Wochentag (z.B. Montag-Mittwoch: Standort A, Donnerstag-Samstag: Standort B)
-- Reservierung erstellen (Anzahl Hähnchen, Pommes, Abholzeit)
-- Reservierungsbestätigung erhalten
-- Sehen welcher Foodtruck wann an welchem Standort ist
+- Standort auswählen für HEUTE (nur Same-Day-Reservierungen)
+- Sehen wie viele Hähnchen noch verfügbar sind (Live-Anzeige)
+- Reservierung erstellen (Name, optional E-Mail, Anzahl Hähnchen/Pommes, optional Abholzeit)
+- Bestätigungscode erhalten (z.B. `HUHN-K4M7`)
+- Mit Bestätigungscode Reservierung nachschlagen
+- Mit Bestätigungscode Reservierung stornieren (jederzeit möglich)
 
-**Optional** (Design-Entscheidung offen):
-- E-Mail-basierte Reservierung (mit Bestätigungsmail)
-- ODER Name-basierte Reservierung (ohne E-Mail, aber schwierige Bestätigung)
+**Bestätigungsprozess**:
+- Reservierung wird AUTOMATISCH bestätigt (solange Vorrat > 0)
+- Falls E-Mail angegeben → Bestätigungsmail mit Code
+- Immer: Bestätigungscode auf Website anzeigen (zum Aufschreiben/Screenshot)
 
 ### Mitarbeiter (Tablet-Interface)
 
 **Muss**:
-- Alle Reservierungen des Tages für den aktuellen Standort sehen
-- Reservierungen bestätigen/ablehnen
-- Verfügbare Kapazität auf einen Blick
+- **Tagesvorrat eintragen**: Morgens eingeben wie viele Hähnchen heute da sind
+- **Vorrat anpassen**: Jederzeit ändern (Lieferung, Ausfall, Nachschub)
+- Alle Reservierungen des Tages sehen
+- Live-Übersicht: Eingetragener Vorrat vs. Reserviert vs. Verfügbar
+- Reservierung als abgeholt markieren (COMPLETED)
+- Reservierung als nicht erschienen markieren (NO_SHOW)
+- Reservierung stornieren (CANCELLED)
 - Nach Abholzeit sortierbar
-- Standort-spezifische Ansicht (jeder Foodtruck sieht nur seine Reservierungen)
+
+**Nicht mehr nötig** (wegen Auto-Accept):
+- ~~Reservierungen manuell bestätigen~~ (automatisch)
 
 **Nice-to-have**:
-- Filter nach Status (bestätigt, ausstehend, abgeschlossen)
+- Filter nach Status
 - Push-Benachrichtigung bei neuer Reservierung
 
 ### Administrator (Web-Interface)
@@ -110,9 +119,11 @@ Mitarbeiter sehen auf einen Blick:
 **Muss**:
 - Übersicht aller Reservierungen (beide Standorte)
 - Standortverwaltung (Wochentags-Zuordnung konfigurieren)
-- Kapazität pro Standort konfigurieren
+- Öffnungszeiten pro Standort/Wochentag konfigurieren
 - Statistiken (Auslastung pro Standort, etc.)
 - Systemverwaltung
+
+**Hinweis**: Die tägliche Kapazität (Vorrat) wird NICHT vom Admin vorkonfiguriert, sondern vom Mitarbeiter morgens eingetragen.
 
 ## Nicht-Ziele
 
@@ -135,10 +146,10 @@ Mitarbeiter sehen auf einen Blick:
 - ❌ Keine Treueprogramme/Rabatte
 
 ### Zukünftig (Phase 2+)
+- **Admin-Statistik-Dashboard** (Verkaufszahlen, Wetter-Korrelation, Standort-Vergleiche)
 - Automatische Kapazitätsberechnung (KI-basiert)
 - Integration mit Bestandsverwaltung
 - Kundenfeedback-System
-- Analytics Dashboard
 
 ## Technische Rahmenbedingungen
 
@@ -156,45 +167,50 @@ Mitarbeiter sehen auf einen Blick:
 - Datenschutzerklärung
 - Impressum
 
-## Offene Fragen
+## Entschiedene Punkte (Stand: 2026-02-14)
 
-Diese Fragen müssen vor der Implementierung geklärt werden:
+### 1. Identifikation der Kunden ✅
+**Entscheidung**: Beides möglich - E-Mail OPTIONAL
 
-### 1. Identifikation der Kunden
-**Frage**: E-Mail-Pflicht oder nur Name?
+- **Mit E-Mail**: Bestätigungsmail wird versendet
+- **Nur Name**: Bestätigungscode wird angezeigt (z.B. `HUHN-K4M7`)
+- Kunde kann mit Bestätigungscode seine Reservierung online nachschlagen und stornieren
 
-**Option A: E-Mail erforderlich**
-- ✅ Pro: Bestätigungsmail möglich, eindeutige Identifikation
-- ❌ Contra: Höhere Hürde für Kunden
+### 2. Kapazitätsmanagement ✅
+**Entscheidung**: Täglicher Vorrat durch Mitarbeiter
 
-**Option B: Nur Name**
-- ✅ Pro: Schnellere Reservierung, niedrigere Hürde
-- ❌ Contra: Keine Bestätigungsmail, Dubletten-Problem bei gleichem Namen
+- Mitarbeiter trägt morgens ein: "Heute haben wir X Hähnchen"
+- Kann jederzeit angepasst werden (Lieferung, Ausfall)
+- Live-Anzeige für Kunden: "Noch X Hähnchen verfügbar"
+- Reservierungen werden automatisch akzeptiert solange Vorrat > 0
+- Vorrat wird sofort bei Reservierung reduziert
 
-**Empfehlung**: Sollte mit Betreiber geklärt werden basierend auf Zielgruppe
+### 3. Stornierungen ✅
+**Entscheidung**: Jederzeit möglich
 
-### 2. Kapazitätsmanagement
-**Frage**: Wie wird tägliche Kapazität festgelegt?
+- Kunde kann jederzeit stornieren (über Bestätigungscode)
+- Keine Stornierungsfrist
+- Bei Stornierung wird Vorrat wieder freigegeben
 
-**Optionen**:
-- Administrator gibt täglich Anzahl verfügbarer Hähnchen ein
-- System hat Standardwert, überschreibbar
-- Automatische Berechnung basierend auf historischen Daten
+### 4. Reservierungsfenster ✅
+**Entscheidung**: Nur am gleichen Tag
 
-### 3. Stornierungen
-**Frage**: Können Kunden stornieren?
+- Reservierungen nur für den aktuellen Tag möglich
+- Keine Vorausreservierung (keine "morgen" Buchungen)
 
-**Zu klären**:
-- Stornierung möglich? Bis wann?
-- Mit/ohne E-Mail schwierig bei Name-only-Reservierungen
+### 5. Abholzeit ✅
+**Entscheidung**: Optional
 
-### 4. Reservierungsfenster
-**Frage**: Wie lange im Voraus kann reserviert werden?
+- Kunde kann Abholzeit angeben, muss aber nicht
+- Ohne Abholzeit: "Ich komme wann ich will"
+- Foodtruck ist meist bis ca. 17:30 da (nicht kritisch für System)
 
-**Zu klären**:
-- Nur am gleichen Tag?
-- Bis zu X Tage im Voraus?
-- Cut-off-Zeit (z.B. keine Reservierung < 1 Stunde vor Abholung)?
+### 6. Workflow ✅
+**Entscheidung**: Automatische Bestätigung
+
+- Reservierung wird sofort CONFIRMED (kein PENDING-Status mehr im Kundenprozess)
+- Solange Vorrat > 0 → automatisch akzeptiert
+- Kein manuelles Bestätigen durch Mitarbeiter nötig
 
 ## Zeitrahmen
 
@@ -215,10 +231,24 @@ Diese Fragen müssen vor der Implementierung geklärt werden:
 ### Phase 2
 **Zeitpunkt**: Nach erfolgreichem MVP-Betrieb (Q3-Q4 2026)
 
-**Mögliche Erweiterungen**:
-- Analytics/Reporting
+**Geplante Erweiterungen**:
+
+#### Admin-Statistik-Dashboard (TASK-007)
+Umfassende Übersicht für Betreiber mit:
+- **Verkaufsstatistiken**: Wie viele Hähnchen wurden wann und wo verkauft
+- **Auslastung**: Vorrat vs. Verkauft in Prozent pro Standort
+- **Wetter-Korrelation**: Automatische Wetter-Speicherung via OpenWeatherMap API
+- **Zeiträume**: Tag/Woche/Monat + freie Datumsauswahl
+- **Zugriff**: Nur Admin
+
+**Entschiedene Details:**
+- Kein Umsatz-Tracking (nur Mengen)
+- Wetter automatisch via API (Koordinaten pro Standort)
+- Kein Export (nur Dashboard-Anzeige)
+
+**Weitere mögliche Erweiterungen**:
 - Erweiterte Kapazitätsplanung
-- Benachrichtigungen
+- Push-Benachrichtigungen für Mitarbeiter
 - Multi-Standort (falls weiterer Foodtruck hinzukommt)
 
 ## Stakeholder
@@ -278,17 +308,20 @@ Diese Fragen müssen vor der Implementierung geklärt werden:
 ### Technische Implikationen
 
 - Reservierungen sind standortbezogen, nicht foodtruckbezogen
-- Kunde wählt "Wann & Wo", System ermittelt automatisch welcher Foodtruck dort ist
-- Kapazität wird pro Standort + Tag verwaltet
-- Mitarbeiter-Login erfolgt pro Standort (nicht pro Foodtruck)
+- Kunde wählt Standort für HEUTE (nur Same-Day)
+- **Täglicher Vorrat** wird vom Mitarbeiter eingetragen (nicht vorkonfiguriert)
+- **Bestätigungscode** (6-8 Zeichen) für jede Reservierung
+- **Auto-Accept**: Reservierung sofort CONFIRMED wenn Vorrat > 0
+- **Live-Verfügbarkeit**: Eingetragener Vorrat - Reservierte Menge = Verfügbar
+- Mitarbeiter-Login erfolgt pro Standort
 
 ---
 
 ## Zusammenfassung
 
-**In einem Satz**: Online-Reservierungssystem für zwei Foodtrucks an wechselnden Standorten, das telefonische Bestellungen und Zettelwirtschaft durch digitales, standortbasiertes Kapazitätsmanagement ersetzt.
+**In einem Satz**: Online-Reservierungssystem für zwei Foodtrucks mit Live-Verfügbarkeitsanzeige und automatischer Bestätigung, das telefonische Bestellungen und Zettelwirtschaft ersetzt.
 
 **Hauptnutzen**:
-- Kunden: Bequeme Online-Reservierung mit Standortauswahl je nach Wochentag
-- Mitarbeiter: Echtzeit-Überblick statt Zettel-Chaos, standortspezifische Ansicht
-- Betreiber: Bessere Kapazitätsplanung über beide Standorte hinweg
+- **Kunden**: Schnelle Same-Day-Reservierung, sehen live wie viele Hähnchen noch da sind, Bestätigungscode für Verwaltung/Stornierung
+- **Mitarbeiter**: Morgens Vorrat eintragen, Live-Übersicht aller Reservierungen, kein manuelles Bestätigen nötig
+- **Betreiber**: Bessere Übersicht, weniger Telefonanrufe, automatisierter Prozess

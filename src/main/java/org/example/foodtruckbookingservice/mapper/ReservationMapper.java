@@ -7,6 +7,8 @@ import org.example.foodtruckbookingservice.entity.Reservation;
 import org.example.foodtruckbookingservice.entity.ReservationStatus;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+
 /**
  * Mapper for Reservation entity and DTOs.
  */
@@ -25,6 +27,7 @@ public class ReservationMapper {
 
         return ReservationResponse.builder()
                 .id(entity.getId())
+                .confirmationCode(entity.getConfirmationCode())
                 .locationId(location != null ? location.getId() : null)
                 .locationName(location != null ? location.getName() : null)
                 .locationAddress(location != null ? location.getAddress() : null)
@@ -32,30 +35,34 @@ public class ReservationMapper {
                 .customerEmail(entity.getCustomerEmail())
                 .chickenCount(entity.getChickenCount())
                 .friesCount(entity.getFriesCount())
+                .reservationDate(entity.getReservationDate())
                 .pickupTime(entity.getPickupTime())
                 .status(entity.getStatus())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .canCancel(entity.getStatus().canCancel())
                 .build();
     }
 
     /**
      * Convert CreateReservationRequest DTO to Reservation entity.
-     * Note: Location must be set separately after fetching from DB.
+     * Note: Location and confirmationCode must be set separately.
      */
-    public Reservation toEntity(CreateReservationRequest request) {
+    public Reservation toEntity(CreateReservationRequest request, String confirmationCode) {
         if (request == null) {
             return null;
         }
         return Reservation.builder()
+                .confirmationCode(confirmationCode)
                 .customerName(request.getCustomerName())
                 .customerEmail(request.getCustomerEmail())
                 .chickenCount(request.getChickenCount())
                 .friesCount(request.getFriesCount())
-                .pickupTime(request.getPickupTime())
+                .reservationDate(LocalDate.now())  // Always today (same-day only)
+                .pickupTime(request.getPickupTime())  // Can be null
                 .notes(request.getNotes())
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.CONFIRMED)  // Auto-confirmed!
                 .build();
     }
 }

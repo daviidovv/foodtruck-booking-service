@@ -5,29 +5,26 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.foodtruckbookingservice.dto.request.CreateLocationRequest;
 import org.example.foodtruckbookingservice.dto.request.CreateScheduleRequest;
 import org.example.foodtruckbookingservice.dto.response.AvailabilityResponse;
+import org.example.foodtruckbookingservice.dto.response.InventoryResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationWithScheduleResponse;
 import org.example.foodtruckbookingservice.dto.response.ScheduleResponse;
 import org.example.foodtruckbookingservice.entity.Location;
 import org.example.foodtruckbookingservice.entity.LocationSchedule;
-import org.example.foodtruckbookingservice.entity.ReservationStatus;
 import org.example.foodtruckbookingservice.exception.BusinessRuleViolationException;
 import org.example.foodtruckbookingservice.exception.LocationNameAlreadyExistsException;
 import org.example.foodtruckbookingservice.exception.LocationNotFoundException;
 import org.example.foodtruckbookingservice.mapper.LocationMapper;
 import org.example.foodtruckbookingservice.repository.LocationRepository;
 import org.example.foodtruckbookingservice.repository.LocationScheduleRepository;
-import org.example.foodtruckbookingservice.repository.ReservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -41,11 +38,8 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final LocationScheduleRepository scheduleRepository;
-    private final ReservationRepository reservationRepository;
+    private final InventoryService inventoryService;
     private final LocationMapper locationMapper;
-
-    private static final Set<ReservationStatus> ACTIVE_STATUSES =
-            Set.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
 
     /**
      * Get all active locations.
@@ -78,6 +72,7 @@ public class LocationService {
 
     /**
      * Check availability for a location on a specific date.
+     * Uses daily_inventory for today (same-day only).
      */
     public AvailabilityResponse checkAvailability(UUID locationId, LocalDate date) {
         log.debug("Checking availability for location {} on {}", locationId, date);
@@ -85,9 +80,29 @@ public class LocationService {
         Location location = findLocationOrThrow(locationId);
         int dayOfWeek = date.getDayOfWeek().getValue();
 
-        return scheduleRepository.findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
-                .map(schedule -> buildAvailabilityResponse(location, schedule, date))
-                .orElseGet(() -> buildClosedResponse(location, date, dayOfWeek));
+        // Check if location is open on this day
+        LocationSchedule schedule = scheduleRepository
+                .findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
+                .orElse(null);
+
+        if (schedule == null) {
+            return buildClosedResponse(location, date, dayOfWeek);
+        }
+
+        // Only same-day reservations allowed
+        LocalDate today = LocalDate.now();
+        if (!date.equals(today)) {
+            return buildNotTodayResponse(location, schedule, date);
+        }
+
+        // Get inventory for today
+        InventoryResponse inventory = inventoryService.getInventory(locationId, date);
+
+        if (!inventory.getInventorySet()) {
+            return buildNoInventoryResponse(location, schedule, date);
+        }
+
+        return buildAvailabilityResponse(location, schedule, date, inventory);
     }
 
     /**
@@ -167,38 +182,16 @@ public class LocationService {
         return locationMapper.toScheduleResponse(saved);
     }
 
-    /**
-     * Get available capacity for a location on a specific date.
-     */
-    public int getAvailableCapacity(UUID locationId, LocalDate date) {
-        int dayOfWeek = date.getDayOfWeek().getValue();
-
-        return scheduleRepository.findByLocationIdAndDayOfWeekAndActiveTrue(locationId, dayOfWeek)
-                .map(schedule -> {
-                    LocalDateTime startOfDay = date.atStartOfDay();
-                    LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
-
-                    Integer reserved = reservationRepository.sumChickenCountByLocationAndDateAndStatus(
-                            locationId, startOfDay, endOfDay, ACTIVE_STATUSES);
-
-                    return schedule.getDailyCapacity() - (reserved != null ? reserved : 0);
-                })
-                .orElse(0);
-    }
-
     private Location findLocationOrThrow(UUID locationId) {
         return locationRepository.findById(locationId)
                 .orElseThrow(() -> new LocationNotFoundException(locationId));
     }
 
-    private AvailabilityResponse buildAvailabilityResponse(Location location, LocationSchedule schedule, LocalDate date) {
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
-
-        Integer reserved = reservationRepository.sumChickenCountByLocationAndDateAndStatus(
-                location.getId(), startOfDay, endOfDay, ACTIVE_STATUSES);
-        int reservedCapacity = reserved != null ? reserved : 0;
-        int availableCapacity = schedule.getDailyCapacity() - reservedCapacity;
+    private AvailabilityResponse buildAvailabilityResponse(
+            Location location,
+            LocationSchedule schedule,
+            LocalDate date,
+            InventoryResponse inventory) {
 
         return AvailabilityResponse.builder()
                 .locationId(location.getId())
@@ -208,11 +201,46 @@ public class LocationService {
                 .dayName(getDayName(schedule.getDayOfWeek()))
                 .openingTime(schedule.getOpeningTime())
                 .closingTime(schedule.getClosingTime())
-                .totalCapacity(schedule.getDailyCapacity())
-                .reservedCapacity(reservedCapacity)
-                .availableCapacity(Math.max(0, availableCapacity))
+                .inventorySet(true)
+                .totalChickens(inventory.getTotalChickens())
+                .reservedChickens(inventory.getReservedChickens())
+                .availableChickens(inventory.getAvailableChickens())
                 .isOpen(true)
-                .availabilityStatus(calculateAvailabilityStatus(availableCapacity, schedule.getDailyCapacity()))
+                .availabilityStatus(inventory.getStatus())
+                .build();
+    }
+
+    private AvailabilityResponse buildNoInventoryResponse(Location location, LocationSchedule schedule, LocalDate date) {
+        return AvailabilityResponse.builder()
+                .locationId(location.getId())
+                .locationName(location.getName())
+                .date(date)
+                .dayOfWeek(schedule.getDayOfWeek())
+                .dayName(getDayName(schedule.getDayOfWeek()))
+                .openingTime(schedule.getOpeningTime())
+                .closingTime(schedule.getClosingTime())
+                .inventorySet(false)
+                .availableChickens(0)
+                .isOpen(true)
+                .availabilityStatus(AvailabilityResponse.AvailabilityStatus.NOT_AVAILABLE)
+                .message("Vorrat wurde noch nicht eingetragen")
+                .build();
+    }
+
+    private AvailabilityResponse buildNotTodayResponse(Location location, LocationSchedule schedule, LocalDate date) {
+        return AvailabilityResponse.builder()
+                .locationId(location.getId())
+                .locationName(location.getName())
+                .date(date)
+                .dayOfWeek(schedule.getDayOfWeek())
+                .dayName(getDayName(schedule.getDayOfWeek()))
+                .openingTime(schedule.getOpeningTime())
+                .closingTime(schedule.getClosingTime())
+                .inventorySet(false)
+                .availableChickens(0)
+                .isOpen(true)
+                .availabilityStatus(AvailabilityResponse.AvailabilityStatus.NOT_AVAILABLE)
+                .message("Reservierungen nur für heute möglich")
                 .build();
     }
 
@@ -223,28 +251,11 @@ public class LocationService {
                 .date(date)
                 .dayOfWeek(dayOfWeek)
                 .dayName(getDayName(dayOfWeek))
-                .totalCapacity(0)
-                .reservedCapacity(0)
-                .availableCapacity(0)
+                .inventorySet(false)
+                .availableChickens(0)
                 .isOpen(false)
                 .availabilityStatus(AvailabilityResponse.AvailabilityStatus.CLOSED)
                 .build();
-    }
-
-    private AvailabilityResponse.AvailabilityStatus calculateAvailabilityStatus(int available, int total) {
-        if (total == 0 || available <= 0) {
-            return AvailabilityResponse.AvailabilityStatus.FULL;
-        }
-
-        double percentAvailable = (double) available / total * 100;
-
-        if (percentAvailable > 30) {
-            return AvailabilityResponse.AvailabilityStatus.AVAILABLE;
-        } else if (percentAvailable > 10) {
-            return AvailabilityResponse.AvailabilityStatus.LIMITED;
-        } else {
-            return AvailabilityResponse.AvailabilityStatus.ALMOST_FULL;
-        }
     }
 
     private String getDayName(int dayOfWeek) {

@@ -3,29 +3,36 @@ package org.example.foodtruckbookingservice.entity;
 /**
  * Status values for reservations with allowed state transitions.
  *
- * <p>State transition diagram:
+ * <p>Note: Since the auto-accept workflow, reservations start as CONFIRMED.
+ * PENDING is kept for backward compatibility with existing data but is not
+ * used in new reservations.
+ *
+ * <p>State transition diagram (new workflow):
  * <pre>
- *                PENDING
- *                   │
- *         ┌─────────┼─────────┐
- *         │         │         │
- *         ▼         │         ▼
- *    CANCELLED ◄────┼──── CONFIRMED
- *                   │         │
- *                   │    ┌────┴────┐
- *                   │    ▼         ▼
- *                   │ COMPLETED  NO_SHOW
+ *         Customer reserves
+ *                │
+ *                ▼
+ *           CONFIRMED ◄─── Starting point (auto-confirmed)
+ *                │
+ *       ┌────────┼────────┐
+ *       ▼        ▼        ▼
+ *  CANCELLED  COMPLETED  NO_SHOW
  * </pre>
  */
 public enum ReservationStatus {
 
-    /** Reservation received, waiting for staff confirmation. */
+    /**
+     * @deprecated PENDING is no longer used in new reservations.
+     * Reservations are auto-confirmed if inventory is available.
+     * Kept for backward compatibility with existing data.
+     */
+    @Deprecated
     PENDING,
 
-    /** Confirmed by staff, products reserved. */
+    /** Auto-confirmed when created (if inventory available). Starting state. */
     CONFIRMED,
 
-    /** Cancelled (by staff). Terminal state. */
+    /** Cancelled (by customer via code or by staff). Terminal state. */
     CANCELLED,
 
     /** Customer picked up the order. Terminal state. */
@@ -42,6 +49,7 @@ public enum ReservationStatus {
      */
     public boolean canTransitionTo(ReservationStatus newStatus) {
         return switch (this) {
+            // PENDING kept for backward compatibility - can still transition
             case PENDING -> newStatus == CONFIRMED || newStatus == CANCELLED;
             case CONFIRMED -> newStatus == COMPLETED || newStatus == NO_SHOW || newStatus == CANCELLED;
             case CANCELLED, COMPLETED, NO_SHOW -> false; // Terminal states
@@ -55,5 +63,14 @@ public enum ReservationStatus {
      */
     public boolean isTerminal() {
         return this == CANCELLED || this == COMPLETED || this == NO_SHOW;
+    }
+
+    /**
+     * Checks if cancellation is allowed from this status.
+     *
+     * @return true if reservation can be cancelled
+     */
+    public boolean canCancel() {
+        return this == CONFIRMED || this == PENDING;
     }
 }
