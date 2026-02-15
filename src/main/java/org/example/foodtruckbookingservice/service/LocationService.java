@@ -5,10 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.foodtruckbookingservice.dto.request.CreateLocationRequest;
 import org.example.foodtruckbookingservice.dto.request.CreateScheduleRequest;
 import org.example.foodtruckbookingservice.dto.response.AvailabilityResponse;
+import org.example.foodtruckbookingservice.dto.response.DayScheduleResponse;
 import org.example.foodtruckbookingservice.dto.response.InventoryResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationResponse;
+import org.example.foodtruckbookingservice.dto.response.LocationScheduleEntryResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationWithScheduleResponse;
 import org.example.foodtruckbookingservice.dto.response.ScheduleResponse;
+import org.example.foodtruckbookingservice.dto.response.WeeklyScheduleResponse;
 import org.example.foodtruckbookingservice.entity.Location;
 import org.example.foodtruckbookingservice.entity.LocationSchedule;
 import org.example.foodtruckbookingservice.exception.BusinessRuleViolationException;
@@ -23,9 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service for location and schedule operations.
@@ -103,6 +110,70 @@ public class LocationService {
         }
 
         return buildAvailabilityResponse(location, schedule, date, inventory);
+    }
+
+    /**
+     * Get the weekly schedule for all active locations.
+     * Returns locations grouped by day of week.
+     */
+    public WeeklyScheduleResponse getWeeklySchedule() {
+        log.debug("Fetching weekly schedule for all active locations");
+
+        List<LocationSchedule> allSchedules = scheduleRepository.findAllActiveWithLocation();
+
+        Map<Integer, List<LocationSchedule>> schedulesByDay = allSchedules.stream()
+                .collect(Collectors.groupingBy(LocationSchedule::getDayOfWeek));
+
+        List<DayScheduleResponse> daySchedules = new ArrayList<>();
+
+        for (int day = 1; day <= 7; day++) {
+            List<LocationSchedule> dayLocations = schedulesByDay.getOrDefault(day, List.of());
+
+            if (!dayLocations.isEmpty()) {
+                List<LocationScheduleEntryResponse> entries = dayLocations.stream()
+                        .sorted(Comparator.comparing(s -> s.getLocation().getName()))
+                        .map(this::toLocationScheduleEntry)
+                        .toList();
+
+                daySchedules.add(DayScheduleResponse.builder()
+                        .dayOfWeek(day)
+                        .dayName(getDayName(day))
+                        .locations(entries)
+                        .build());
+            }
+        }
+
+        return WeeklyScheduleResponse.builder()
+                .schedule(daySchedules)
+                .build();
+    }
+
+    /**
+     * Get locations that are open today.
+     */
+    public List<LocationResponse> getTodayLocations() {
+        log.debug("Fetching locations open today");
+        int todayDayOfWeek = LocalDate.now().getDayOfWeek().getValue();
+        List<LocationSchedule> todaySchedules = scheduleRepository.findByDayOfWeekAndActiveTrue(todayDayOfWeek);
+
+        return todaySchedules.stream()
+                .map(LocationSchedule::getLocation)
+                .filter(Location::getActive)
+                .map(locationMapper::toResponse)
+                .toList();
+    }
+
+    private LocationScheduleEntryResponse toLocationScheduleEntry(LocationSchedule schedule) {
+        Location location = schedule.getLocation();
+        return LocationScheduleEntryResponse.builder()
+                .locationId(location.getId())
+                .locationName(location.getName())
+                .address(location.getAddress())
+                .latitude(location.getLatitude())
+                .longitude(location.getLongitude())
+                .openingTime(schedule.getOpeningTime())
+                .closingTime(schedule.getClosingTime())
+                .build();
     }
 
     /**

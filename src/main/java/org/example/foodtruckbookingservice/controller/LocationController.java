@@ -9,6 +9,7 @@ import org.example.foodtruckbookingservice.dto.response.AvailabilityResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationResponse;
 import org.example.foodtruckbookingservice.dto.response.LocationWithScheduleResponse;
 import org.example.foodtruckbookingservice.dto.response.ScheduleResponse;
+import org.example.foodtruckbookingservice.dto.response.WeeklyScheduleResponse;
 import org.example.foodtruckbookingservice.service.LocationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -85,6 +86,28 @@ public class LocationController {
         log.info("GET /api/v1/locations/{}/availability?date={}", locationId, queryDate);
         AvailabilityResponse availability = locationService.checkAvailability(locationId, queryDate);
         return ResponseEntity.ok(availability);
+    }
+
+    /**
+     * Get the weekly schedule for all locations.
+     * Public endpoint - no authentication required.
+     */
+    @GetMapping("/schedule")
+    public ResponseEntity<WeeklyScheduleResponse> getWeeklySchedule() {
+        log.info("GET /api/v1/schedule");
+        WeeklyScheduleResponse schedule = locationService.getWeeklySchedule();
+        return ResponseEntity.ok(schedule);
+    }
+
+    /**
+     * Get locations that are open today.
+     * Public endpoint - no authentication required.
+     */
+    @GetMapping("/locations/today")
+    public ResponseEntity<Map<String, List<LocationResponse>>> getTodayLocations() {
+        log.info("GET /api/v1/locations/today");
+        List<LocationResponse> locations = locationService.getTodayLocations();
+        return ResponseEntity.ok(Map.of("content", locations));
     }
 
     // ==================== Admin Endpoints ====================

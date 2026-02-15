@@ -3,6 +3,8 @@ export interface Location {
   id: string
   name: string
   address: string
+  latitude: number | null
+  longitude: number | null
   active: boolean
   createdAt: string
   updatedAt: string
@@ -20,6 +22,27 @@ export interface Schedule {
 
 export interface LocationWithSchedule extends Location {
   schedules: Schedule[]
+}
+
+// Weekly schedule types
+export interface LocationScheduleEntry {
+  locationId: string
+  locationName: string
+  address: string
+  latitude: number | null
+  longitude: number | null
+  openingTime: string
+  closingTime: string
+}
+
+export interface DaySchedule {
+  dayOfWeek: number
+  dayName: string
+  locations: LocationScheduleEntry[]
+}
+
+export interface WeeklySchedule {
+  schedule: DaySchedule[]
 }
 
 // Availability types

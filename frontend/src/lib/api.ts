@@ -6,6 +6,7 @@ import type {
   CreateReservationRequest,
   Inventory,
   ApiError,
+  WeeklySchedule,
 } from '@/types'
 
 const API_BASE = '/api/v1'
@@ -52,6 +53,14 @@ class ApiClient {
   // Public endpoints
   async getLocations(): Promise<{ content: Location[] }> {
     return this.request('/locations')
+  }
+
+  async getTodayLocations(): Promise<{ content: Location[] }> {
+    return this.request('/locations/today')
+  }
+
+  async getWeeklySchedule(): Promise<WeeklySchedule> {
+    return this.request('/schedule')
   }
 
   async getLocationSchedule(locationId: string): Promise<LocationWithSchedule> {

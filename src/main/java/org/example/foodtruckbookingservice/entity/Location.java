@@ -48,6 +48,10 @@ public class Location {
     @Column(nullable = false, length = 500)
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

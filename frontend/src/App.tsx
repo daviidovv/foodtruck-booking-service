@@ -6,6 +6,7 @@ import { HomePage } from '@/features/customer/pages/HomePage'
 import { LookupPage } from '@/features/customer/pages/LookupPage'
 import { ReservationPage } from '@/features/customer/pages/ReservationPage'
 import { ConfirmationPage } from '@/features/customer/pages/ConfirmationPage'
+import { SchedulePage } from '@/features/customer/pages/SchedulePage'
 
 // Lazy load staff and admin pages - these won't be in the customer bundle
 const StaffLoginPage = lazy(() =>
@@ -43,6 +44,7 @@ function App() {
               <main className="container py-6">
                 <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/wochenplan" element={<SchedulePage />} />
                   <Route path="/reserve/:locationId" element={<ReservationPage />} />
                   <Route path="/confirmation/:code" element={<ConfirmationPage />} />
                   <Route path="/lookup" element={<LookupPage />} />

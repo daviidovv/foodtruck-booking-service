@@ -34,6 +34,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints - no auth required
                         .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/schedule").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/reservations").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reservations/**").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/reservations/code/**").permitAll()
@@ -57,13 +58,20 @@ public class SecurityConfig {
 
     /**
      * In-memory user details for MVP.
+     * Two truck accounts (wagen1, wagen2) for staff tablets.
      * TODO: Replace with database-backed UserDetailsService in Phase 2.
      */
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        var staff = User.builder()
-                .username("staff")
-                .password(passwordEncoder.encode("staff123"))
+        var wagen1 = User.builder()
+                .username("wagen1")
+                .password(passwordEncoder.encode("wagen1"))
+                .roles("STAFF")
+                .build();
+
+        var wagen2 = User.builder()
+                .username("wagen2")
+                .password(passwordEncoder.encode("wagen2"))
                 .roles("STAFF")
                 .build();
 
@@ -73,7 +81,7 @@ public class SecurityConfig {
                 .roles("ADMIN")
                 .build();
 
-        return new InMemoryUserDetailsManager(staff, admin);
+        return new InMemoryUserDetailsManager(wagen1, wagen2, admin);
     }
 
     @Bean

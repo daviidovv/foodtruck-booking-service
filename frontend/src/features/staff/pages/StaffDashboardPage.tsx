@@ -10,14 +10,23 @@ import {
   XCircle,
   Clock,
   Loader2,
+  AlertCircle,
+  Check,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Reservation, ReservationStatus, ApiError } from '@/types'
-import { formatTime, formatDateTime } from '@/lib/utils'
+import { Reservation } from '@/types'
+import { formatTime } from '@/lib/utils'
+
+type ToastType = 'success' | 'error'
+
+interface Toast {
+  type: ToastType
+  message: string
+}
 
 export function StaffDashboardPage() {
   const navigate = useNavigate()
@@ -27,6 +36,12 @@ export function StaffDashboardPage() {
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null)
   const [locationId, setLocationId] = useState<string | null>(null)
   const [newInventory, setNewInventory] = useState('')
+  const [toast, setToast] = useState<Toast | null>(null)
+
+  const showToast = (type: ToastType, message: string) => {
+    setToast({ type, message })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   useEffect(() => {
     const storedCreds = sessionStorage.getItem('staff_credentials')
@@ -60,9 +75,13 @@ export function StaffDashboardPage() {
   const setInventoryMutation = useMutation({
     mutationFn: (total: number) =>
       api.setInventory(locationId!, total, credentials!.username, credentials!.password),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['staff-inventory'] })
       setNewInventory('')
+      showToast('success', `Vorrat auf ${data.totalChickens} Hähnchen gesetzt`)
+    },
+    onError: () => {
+      showToast('error', 'Fehler beim Setzen des Vorrats')
     },
   })
 
@@ -74,9 +93,14 @@ export function StaffDashboardPage() {
         credentials!.username,
         credentials!.password
       ),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['staff-reservations'] })
       queryClient.invalidateQueries({ queryKey: ['staff-inventory'] })
+      const statusText = variables.status === 'COMPLETED' ? 'als abgeholt markiert' : 'aktualisiert'
+      showToast('success', `Reservierung ${statusText}`)
+    },
+    onError: () => {
+      showToast('error', 'Fehler beim Aktualisieren der Reservierung')
     },
   })
 
@@ -277,6 +301,24 @@ export function StaffDashboardPage() {
           </Card>
         )}
       </main>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg transition-all ${
+            toast.type === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-destructive text-destructive-foreground'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <AlertCircle className="h-4 w-4" />
+          )}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
     </div>
   )
 }

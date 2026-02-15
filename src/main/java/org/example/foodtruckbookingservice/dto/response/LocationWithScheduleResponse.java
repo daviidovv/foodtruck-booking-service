@@ -19,5 +19,8 @@ public class LocationWithScheduleResponse {
 
     private UUID locationId;
     private String locationName;
+    private String address;
+    private Double latitude;
+    private Double longitude;
     private List<ScheduleResponse> schedules;
 }

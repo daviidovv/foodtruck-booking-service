@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MapPin, Clock, ChevronRight } from 'lucide-react'
+import { MapPin, Clock, ChevronRight, CalendarDays } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,11 +31,13 @@ export function HomePage() {
   const today = new Date().toISOString().split('T')[0]
 
   const { data: locationsData, isLoading } = useQuery({
-    queryKey: ['locations'],
-    queryFn: () => api.getLocations(),
+    queryKey: ['locations', 'today'],
+    queryFn: () => api.getTodayLocations(),
+    staleTime: 60 * 1000, // 1 minute
   })
 
   const locations = locationsData?.content ?? []
+  const noLocationsToday = !isLoading && locations.length === 0
 
   return (
     <div className="space-y-8">
@@ -72,10 +74,22 @@ export function HomePage() {
               </Card>
             ))}
           </div>
-        ) : locations.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              Heute sind leider keine Standorte verfügbar.
+        ) : noLocationsToday ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center space-y-4">
+              <CalendarDays className="h-12 w-12 mx-auto text-muted-foreground" />
+              <div>
+                <h3 className="text-lg font-semibold">Heute sind wir nicht unterwegs</h3>
+                <p className="text-muted-foreground mt-1">
+                  Schau dir an, wann und wo du uns findest!
+                </p>
+              </div>
+              <Link to="/wochenplan">
+                <Button variant="default" size="lg">
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  Wochenplan ansehen
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         ) : (

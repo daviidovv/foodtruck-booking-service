@@ -5,24 +5,24 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
- * Response DTO for location data.
+ * Response DTO for a location entry in the schedule.
+ * Contains location info and opening hours for a specific day.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LocationResponse {
+public class LocationScheduleEntryResponse {
 
-    private UUID id;
-    private String name;
+    private UUID locationId;
+    private String locationName;
     private String address;
     private Double latitude;
     private Double longitude;
-    private Boolean active;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private LocalTime openingTime;
+    private LocalTime closingTime;
 }

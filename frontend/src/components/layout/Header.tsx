@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Drumstick, Search, Menu } from 'lucide-react'
+import { Drumstick, Search, Menu, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,15 @@ export function Header() {
             )}
           >
             Reservieren
+          </Link>
+          <Link
+            to="/wochenplan"
+            className={cn(
+              "text-sm font-medium transition-colors hover:text-primary",
+              isActive('/wochenplan') ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            Wochenplan
           </Link>
           <Link
             to="/lookup"
@@ -84,6 +93,17 @@ export function Header() {
               )}
             >
               Reservieren
+            </Link>
+            <Link
+              to="/wochenplan"
+              onClick={() => setMobileMenuOpen(false)}
+              className={cn(
+                "px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                isActive('/wochenplan') ? "bg-primary text-white" : "hover:bg-muted"
+              )}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Wochenplan
             </Link>
             <Link
               to="/lookup"
