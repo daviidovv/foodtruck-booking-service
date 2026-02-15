@@ -219,6 +219,7 @@ public class ReservationService {
 
     /**
      * Update reservation status.
+     * When marked as COMPLETED, reduces the total inventory by the chicken count.
      */
     @Transactional
     public ReservationResponse updateStatus(UUID reservationId, UpdateStatusRequest request) {
@@ -231,6 +232,7 @@ public class ReservationService {
             throw new InvalidStatusTransitionException(reservation.getStatus(), request.getStatus());
         }
 
+        ReservationStatus oldStatus = reservation.getStatus();
         reservation.setStatus(request.getStatus());
         if (request.getNotes() != null && !request.getNotes().isBlank()) {
             reservation.setNotes(request.getNotes());
@@ -238,6 +240,15 @@ public class ReservationService {
 
         Reservation saved = reservationRepository.save(reservation);
         log.info("Updated reservation {} status to {}", reservationId, saved.getStatus());
+
+        // Bei COMPLETED: Hähnchen vom Gesamtvorrat abziehen (die sind jetzt weg)
+        if (request.getStatus() == ReservationStatus.COMPLETED && oldStatus == ReservationStatus.CONFIRMED) {
+            inventoryService.reduceInventory(
+                    reservation.getLocation().getId(),
+                    reservation.getChickenCount()
+            );
+            log.info("Reduced inventory by {} chickens for completed reservation", reservation.getChickenCount());
+        }
 
         return reservationMapper.toResponse(saved);
     }

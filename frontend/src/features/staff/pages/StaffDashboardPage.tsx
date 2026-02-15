@@ -78,10 +78,13 @@ export function StaffDashboardPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['staff-inventory'] })
       setNewInventory('')
-      showToast('success', `Vorrat auf ${data.totalChickens} Hähnchen gesetzt`)
+      showToast('success', `Vorrat: ${data.totalChickens} Hähnchen (${data.availableChickens} verfügbar)`)
     },
-    onError: () => {
-      showToast('error', 'Fehler beim Setzen des Vorrats')
+    onError: (error: unknown) => {
+      console.error('setInventory error:', error)
+      const apiError = error as { message?: string; detail?: string }
+      const message = apiError?.message || apiError?.detail || 'Fehler beim Setzen des Vorrats'
+      showToast('error', message)
     },
   })
 
@@ -114,6 +117,7 @@ export function StaffDashboardPage() {
     e.preventDefault()
     const total = parseInt(newInventory, 10)
     if (!isNaN(total) && total >= 0) {
+      // Staff gibt Gesamtvorrat ein, System rechnet: Verfügbar = Gesamt - Reserviert
       setInventoryMutation.mutate(total)
     }
   }
@@ -227,7 +231,7 @@ export function StaffDashboardPage() {
               <Input
                 type="number"
                 min="0"
-                placeholder="Anzahl Hähnchen"
+                placeholder="Gesamtvorrat..."
                 value={newInventory}
                 onChange={(e) => setNewInventory(e.target.value)}
               />

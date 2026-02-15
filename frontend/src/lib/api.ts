@@ -19,15 +19,22 @@ class ApiClient {
     const url = `${API_BASE}${endpoint}`
 
     const response = await fetch(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
     })
 
     if (!response.ok) {
-      const error: ApiError = await response.json()
+      const errorText = await response.text()
+      console.error('API Error:', response.status, errorText)
+      let error: ApiError
+      try {
+        error = JSON.parse(errorText)
+      } catch {
+        error = { detail: errorText || `HTTP ${response.status}`, status: response.status } as ApiError
+      }
       throw error
     }
 

@@ -144,6 +144,26 @@ public class InventoryService {
         return inventoryRepository.existsByLocationIdAndDate(locationId, LocalDate.now());
     }
 
+    /**
+     * Reduce total inventory when a reservation is completed (chickens picked up).
+     *
+     * @param locationId   the location ID
+     * @param chickenCount number of chickens to subtract
+     */
+    @Transactional
+    public void reduceInventory(UUID locationId, int chickenCount) {
+        LocalDate today = LocalDate.now();
+
+        inventoryRepository.findByLocationIdAndDate(locationId, today)
+                .ifPresent(inventory -> {
+                    int newTotal = Math.max(0, inventory.getTotalChickens() - chickenCount);
+                    log.info("Reducing inventory for location {} from {} to {} (-{} chickens)",
+                            locationId, inventory.getTotalChickens(), newTotal, chickenCount);
+                    inventory.setTotalChickens(newTotal);
+                    inventoryRepository.save(inventory);
+                });
+    }
+
     private int getReservedChickens(UUID locationId, LocalDate date) {
         return reservationRepository.sumChickenCountByLocationAndDateAndStatus(
                 locationId,
