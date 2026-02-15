@@ -42,6 +42,12 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/*.local
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 ### Docker ###
 *.log
+
+### macOS ###
+.DS_Store
