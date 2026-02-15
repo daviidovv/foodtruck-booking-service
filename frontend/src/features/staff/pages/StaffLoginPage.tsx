@@ -8,18 +8,25 @@ import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 
 // Mapping: Welcher Wagen fährt an welchem Tag wohin (ISO weekday: 1=Mo, 7=So)
+// Produktion: Di-Fr | Lokal (dev): alle Tage für Tests
 const TRUCK_SCHEDULE: Record<string, Record<number, string>> = {
   wagen1: {
+    1: 'Traunreut',     // Montag (nur dev)
     2: 'Traunreut',     // Dienstag
     3: 'Mitterfelden',  // Mittwoch
     4: 'Siegsdorf',     // Donnerstag
     5: 'Traunreut',     // Freitag
+    6: 'Mitterfelden',  // Samstag (nur dev)
+    7: 'Siegsdorf',     // Sonntag (nur dev)
   },
   wagen2: {
+    1: 'Raubling',      // Montag (nur dev)
     2: 'Raubling',      // Dienstag
     3: 'Bad Endorf',    // Mittwoch
     4: 'Bruckmühl',     // Donnerstag
     5: 'Prien',         // Freitag
+    6: 'Bad Endorf',    // Samstag (nur dev)
+    7: 'Bruckmühl',     // Sonntag (nur dev)
   },
 }
 

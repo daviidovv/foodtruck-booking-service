@@ -1,10 +1,48 @@
 -- =====================================================
--- Sample Reservations for Local Development
+-- Development Data for Local Testing
 -- This is a REPEATABLE migration (R__) - runs when changed
 -- DO NOT use in production!
 -- =====================================================
 
--- Clear existing sample reservations (keeps real data safe by using specific IDs)
+-- =====================================================
+-- Additional Schedules for Mo, Sa, So (Testing only)
+-- This allows testing the staff login any day of the week
+-- =====================================================
+
+-- Delete existing test schedules (Mo, Sa, So only)
+DELETE FROM location_schedule WHERE id IN (
+    'b0000000-0000-0000-0000-000000000101',
+    'b0000000-0000-0000-0000-000000000102',
+    'b0000000-0000-0000-0000-000000000103',
+    'b0000000-0000-0000-0000-000000000104',
+    'b0000000-0000-0000-0000-000000000105',
+    'b0000000-0000-0000-0000-000000000106'
+);
+
+-- Montag (1) - Test-Tag
+INSERT INTO location_schedule (id, location_id, day_of_week, opening_time, closing_time, daily_capacity, active)
+VALUES
+    ('b0000000-0000-0000-0000-000000000101', 'a0000000-0000-0000-0000-000000000001', 1, '11:00', '19:00', 50, true),  -- Traunreut (Wagen 1)
+    ('b0000000-0000-0000-0000-000000000102', 'a0000000-0000-0000-0000-000000000002', 1, '11:00', '19:00', 50, true);  -- Raubling (Wagen 2)
+
+-- Samstag (6) - Test-Tag
+INSERT INTO location_schedule (id, location_id, day_of_week, opening_time, closing_time, daily_capacity, active)
+VALUES
+    ('b0000000-0000-0000-0000-000000000103', 'a0000000-0000-0000-0000-000000000003', 6, '11:00', '19:00', 50, true),  -- Mitterfelden (Wagen 1)
+    ('b0000000-0000-0000-0000-000000000104', 'a0000000-0000-0000-0000-000000000004', 6, '11:00', '19:00', 50, true);  -- Bad Endorf (Wagen 2)
+
+-- Sonntag (7) - Test-Tag
+INSERT INTO location_schedule (id, location_id, day_of_week, opening_time, closing_time, daily_capacity, active)
+VALUES
+    ('b0000000-0000-0000-0000-000000000105', 'a0000000-0000-0000-0000-000000000005', 7, '11:00', '19:00', 50, true),  -- Siegsdorf (Wagen 1)
+    ('b0000000-0000-0000-0000-000000000106', 'a0000000-0000-0000-0000-000000000006', 7, '11:00', '19:00', 50, true);  -- Bruckmühl (Wagen 2)
+
+
+-- =====================================================
+-- Sample Reservations for Testing
+-- =====================================================
+
+-- Clear existing sample reservations
 DELETE FROM reservation WHERE id IN (
     'c0000000-0000-0000-0000-000000000001',
     'c0000000-0000-0000-0000-000000000002',
@@ -23,7 +61,7 @@ VALUES
      'Max Mustermann',
      'max@example.com',
      2, 3,
-     CURRENT_DATE + INTERVAL '1 day',
+     CURRENT_DATE,
      '14:30',
      'CONFIRMED',
      'TEST0001',
@@ -35,7 +73,7 @@ VALUES
      'Anna Schmidt',
      NULL,
      1, 2,
-     CURRENT_DATE + INTERVAL '1 day',
+     CURRENT_DATE,
      '15:00',
      'CONFIRMED',
      'TEST0002',
@@ -47,7 +85,7 @@ VALUES
      'Peter Müller',
      'peter.mueller@firma.de',
      3, 4,
-     CURRENT_DATE + INTERVAL '1 day',
+     CURRENT_DATE,
      '12:30',
      'CONFIRMED',
      'TEST0003',
