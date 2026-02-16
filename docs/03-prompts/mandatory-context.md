@@ -1,9 +1,9 @@
 # Mandatory Context - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-01-19
+> **Hinweis:** Dies ist eine Referenzdatei mit detaillierten Tech-Informationen.
+> Für den täglichen Workflow: siehe `CLAUDE.md` im Root-Verzeichnis.
 
-## 🔴 KRITISCH 🔴
-Diese Datei MUSS bei JEDEM Code-generierenden Prompt mitgegeben werden!
+Letzte Aktualisierung: 2026-02-16
 
 ---
 
@@ -452,12 +452,3 @@ VITE_API_BASE_URL=http://localhost:8080/api/v1
 VITE_APP_TITLE=Foodtruck Booking
 ```
 
----
-
-## 🔴 WICHTIG: Bei JEDEM Code-Prompt verwenden!
-
-Referenziere immer diese Datei zusammen mit:
-- `/docs/03-prompts/forbidden-actions.md`
-- `/docs/05-quality/definition-of-done.md`
-
-Ohne diese Dateien generiert das LLM inkonsistenten Code!

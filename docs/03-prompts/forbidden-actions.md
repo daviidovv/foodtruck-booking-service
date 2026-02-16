@@ -1,9 +1,9 @@
 # Forbidden Actions - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-01-19
+> **Hinweis:** Dies ist eine Referenzdatei mit allen Verboten.
+> Für den täglichen Workflow: siehe `CLAUDE.md` im Root-Verzeichnis.
 
-## 🔴 KRITISCH 🔴
-Diese Datei MUSS bei JEDEM Code-generierenden Prompt mitgegeben werden!
+Letzte Aktualisierung: 2026-02-16
 
 ---
 
@@ -229,12 +229,3 @@ Diese Datei MUSS bei JEDEM Code-generierenden Prompt mitgegeben werden!
   - **Stattdessen**: [Alternative]
 ```
 
----
-
-## 🔴 Bei JEDEM Code-Prompt verwenden!
-
-Referenziere IMMER zusammen mit:
-- `/docs/03-prompts/mandatory-context.md`
-- `/docs/05-quality/definition-of-done.md`
-
-Diese drei Dateien sind deine Versicherung gegen LLM-Fehler!

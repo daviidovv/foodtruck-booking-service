@@ -1,26 +1,9 @@
 # Tech Stack - Foodtruck Booking Service
 
-Letzte Aktualisierung: 2026-02-11
+> **Hinweis:** Dies ist eine Referenzdatei mit detaillierten Begründungen.
+> Für den täglichen Workflow: siehe `CLAUDE.md` im Root-Verzeichnis.
 
----
-
-## 📋 Zweck & Verwendung beim Prompting
-
-**Wann diese Datei verwenden:**
-- Bei Code-Generierung (korrekte Imports, Versionen)
-- Bei neuen Dependencies (Kompatibilitätsprüfung)
-- Bei Onboarding neuer Entwickler
-- Bei Version-Updates (Impact-Analyse)
-- Bei Tooling-Setup (IDE, Docker)
-
-**Prompt-Beispiel:**
-```
-Generiere Code für [Feature] mit korrekten Versionen aus:
-- /docs/01-architecture/tech-stack.md (Versionen)
-- /docs/03-prompts/mandatory-context.md (Coding-Standards)
-```
-
-**Hinweis:** Versionen sind **fixiert**. Änderungen nur mit ADR!
+Letzte Aktualisierung: 2026-02-16
 
 ---
 
@@ -319,17 +302,3 @@ services:
 |-------|---------|----------|
 | 2026-02-11 | 1.0 | Initial aus mandatory-context.md übernommen |
 
----
-
-## 🔴 Wichtig für LLM
-
-**Verwenden zusammen mit:**
-- `/docs/03-prompts/mandatory-context.md` (Coding-Standards)
-- `/docs/03-prompts/forbidden-actions.md` (Version-Verbote)
-
-**Niemals:**
-- Java-Version von 25 ändern
-- Spring Boot Major-Version ändern
-- PostgreSQL durch andere DB ersetzen
-- React durch anderes Framework ersetzen
-- Redux statt React Query verwenden
