@@ -1,0 +1,28 @@
+def call() {
+    return {
+        def stages = load('./jenkins/stages.groovy')
+
+        properties([
+            parameters([
+                string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Release-Version')
+            ])
+        ])
+
+        // Umgebungsvariablen setzen
+        env.GIT_COMMITTER_NAME = 'Jenkins CI'
+        env.GIT_COMMITTER_EMAIL = 'jenkins@lands.between'
+        env.DOCKER_REGISTRY = 'jenkins.lands.between'
+        env.DOCKER_IMAGE = "${env.DOCKER_REGISTRY}/aquise-helper"
+        env.DOCKER_CREDENTIALS = 'docker-registry-local'
+
+        stages.setReleaseVersion(params.RELEASE_VERSION)()
+        stages.buildAndTest()()
+        stages.dockerPushImage(params.RELEASE_VERSION, true)()
+        stages.deploy('akquise-helper.lands.between', 'aquise-helper.lands.between-ssh')()
+        stages.createReleaseTag(params.RELEASE_VERSION)()
+    }
+}
+
+return this
+
+

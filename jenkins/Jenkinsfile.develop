@@ -1,0 +1,25 @@
+def call() {
+    return {
+        def stages = load('./jenkins/stages.groovy')
+
+        // Umgebungsvariablen setzen
+        //env.GIT_COMMITTER_NAME = 'Jenkins CI'
+        //env.GIT_COMMITTER_EMAIL = 'jenkins@lands.between'
+        env.DOCKER_REGISTRY = 'jenkins.lands.between'
+        env.DOCKER_IMAGE = "${env.DOCKER_REGISTRY}/aquise-helper"
+        env.DOCKER_CREDENTIALS = 'docker-registry-local'
+
+        // Parameter evaluieren
+        script {
+            def pomVersion = sh(script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout | sed -r 's/\\x1b\\[[0-9;]*m//g'", returnStdout: true).trim()
+            env.IMAGE_TAG = "${pomVersion}"
+        }
+
+        stages.buildAndTest()()
+        stages.dockerPushImage(env.IMAGE_TAG)()
+        stages.deploy('akquise-helper-test.lands.between', 'aquise-helper-test.lands.between-ssh')()
+    }
+}
+
+return this
+

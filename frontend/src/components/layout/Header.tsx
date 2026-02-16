@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Drumstick, Search, Menu, CalendarDays } from 'lucide-react'
+import { Bird, Search, Menu, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -11,16 +11,21 @@ export function Header() {
   const isActive = (path: string) => location.pathname === path
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-primary text-primary-foreground shadow-md">
       <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
-            <Drumstick className="h-6 w-6 text-white" />
+        <Link to="/" className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 backdrop-blur">
+            <Bird className="h-7 w-7 text-white" />
           </div>
-          <span className="hidden font-bold text-xl sm:inline-block">
-            Hähnchen-Truck
-          </span>
+          <div className="hidden sm:block">
+            <span className="font-bold text-xl tracking-tight">
+              Hendl Heinrich
+            </span>
+            <span className="block text-xs text-white/80 -mt-1">
+              Seit Generationen knusprig
+            </span>
+          </div>
         </Link>
 
         {/* Desktop Navigation */}
@@ -28,8 +33,8 @@ export function Header() {
           <Link
             to="/"
             className={cn(
-              "text-sm font-medium transition-colors hover:text-primary",
-              isActive('/') ? "text-primary" : "text-muted-foreground"
+              "text-sm font-medium transition-colors hover:text-white/80",
+              isActive('/') ? "text-white border-b-2 border-white pb-1" : "text-white/70"
             )}
           >
             Reservieren
@@ -37,8 +42,8 @@ export function Header() {
           <Link
             to="/wochenplan"
             className={cn(
-              "text-sm font-medium transition-colors hover:text-primary",
-              isActive('/wochenplan') ? "text-primary" : "text-muted-foreground"
+              "text-sm font-medium transition-colors hover:text-white/80",
+              isActive('/wochenplan') ? "text-white border-b-2 border-white pb-1" : "text-white/70"
             )}
           >
             Wochenplan
@@ -46,8 +51,8 @@ export function Header() {
           <Link
             to="/lookup"
             className={cn(
-              "text-sm font-medium transition-colors hover:text-primary",
-              isActive('/lookup') ? "text-primary" : "text-muted-foreground"
+              "text-sm font-medium transition-colors hover:text-white/80",
+              isActive('/lookup') ? "text-white border-b-2 border-white pb-1" : "text-white/70"
             )}
           >
             Reservierung suchen
@@ -57,13 +62,13 @@ export function Header() {
         {/* Actions */}
         <div className="flex items-center gap-2">
           <Link to="/lookup">
-            <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
+            <Button variant="outline" size="sm" className="hidden sm:flex gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20">
               <Search className="h-4 w-4" />
               Code eingeben
             </Button>
           </Link>
           <Link to="/staff/login">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="text-white/70 hover:text-white hover:bg-white/10">
               Mitarbeiter
             </Button>
           </Link>
@@ -72,7 +77,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="md:hidden text-white hover:bg-white/10"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             <Menu className="h-5 w-5" />
@@ -82,14 +87,14 @@ export function Header() {
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t">
+        <div className="md:hidden border-t border-white/20 bg-primary">
           <nav className="container py-4 flex flex-col gap-2">
             <Link
               to="/"
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                isActive('/') ? "bg-primary text-white" : "hover:bg-muted"
+                isActive('/') ? "bg-white/20 text-white" : "text-white/80 hover:bg-white/10"
               )}
             >
               Reservieren
@@ -99,7 +104,7 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 "px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
-                isActive('/wochenplan') ? "bg-primary text-white" : "hover:bg-muted"
+                isActive('/wochenplan') ? "bg-white/20 text-white" : "text-white/80 hover:bg-white/10"
               )}
             >
               <CalendarDays className="h-4 w-4" />
@@ -110,7 +115,7 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
               className={cn(
                 "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                isActive('/lookup') ? "bg-primary text-white" : "hover:bg-muted"
+                isActive('/lookup') ? "bg-white/20 text-white" : "text-white/80 hover:bg-white/10"
               )}
             >
               Reservierung suchen

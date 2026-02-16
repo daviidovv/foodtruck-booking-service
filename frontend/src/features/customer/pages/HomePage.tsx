@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MapPin, Clock, ChevronRight, CalendarDays } from 'lucide-react'
+import { MapPin, Clock, ChevronRight, CalendarDays, Flame } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AvailabilityStatus } from '@/types'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 
 function getStatusBadge(status: AvailabilityStatus) {
   switch (status) {
@@ -44,12 +44,12 @@ export function HomePage() {
       {/* Hero Section */}
       <section className="text-center space-y-4 py-8">
         <h1 className="text-4xl font-bold tracking-tight">
-          Knusprige Hähnchen
-          <span className="text-primary"> reservieren</span>
+          Knusprige Hendl von
+          <span className="text-primary"> Hendl Heinrich</span>
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Wähle deinen Standort und reserviere dein Hähnchen für heute.
-          Schnell, einfach und ohne Wartezeit!
+          Seit Generationen servieren wir die besten Hähnchen der Region.
+          Reserviere jetzt und hol dir dein Hendl ohne Wartezeit!
         </p>
         <p className="text-sm text-muted-foreground">
           {formatDate(today)}
@@ -144,6 +144,81 @@ export function HomePage() {
   )
 }
 
+function AvailabilityDisplay({ available, total }: { available: number; total: number }) {
+  const percentage = (available / total) * 100
+  const isLow = percentage <= 30
+  const isMedium = percentage > 30 && percentage <= 60
+
+  // Determine urgency level and styling
+  const getUrgencyStyle = () => {
+    if (available === 0) {
+      return {
+        bg: 'bg-destructive/10',
+        text: 'text-destructive',
+        border: 'border-destructive/30',
+        icon: false,
+        message: 'Ausverkauft'
+      }
+    }
+    if (isLow) {
+      return {
+        bg: 'bg-destructive/10',
+        text: 'text-destructive',
+        border: 'border-destructive/30',
+        icon: true,
+        message: `Nur noch ${available}!`
+      }
+    }
+    if (isMedium) {
+      return {
+        bg: 'bg-warning/10',
+        text: 'text-warning',
+        border: 'border-warning/30',
+        icon: false,
+        message: `Noch ${available} verfügbar`
+      }
+    }
+    return {
+      bg: 'bg-success/10',
+      text: 'text-success',
+      border: 'border-success/30',
+      icon: false,
+      message: `${available} Hähnchen verfügbar`
+    }
+  }
+
+  const style = getUrgencyStyle()
+
+  return (
+    <div className={cn(
+      "rounded-lg p-3 border transition-all",
+      style.bg,
+      style.border
+    )}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {style.icon && (
+            <Flame className={cn("h-4 w-4 animate-pulse", style.text)} />
+          )}
+          <span className={cn("font-semibold", style.text)}>
+            {style.message}
+          </span>
+        </div>
+        {!isLow && available > 0 && (
+          <span className="text-xs text-muted-foreground">
+            von {total}
+          </span>
+        )}
+      </div>
+      {isLow && available > 0 && (
+        <p className="text-xs text-muted-foreground mt-1">
+          Jetzt reservieren, bevor sie weg sind!
+        </p>
+      )}
+    </div>
+  )
+}
+
 function LocationCard({ locationId }: { locationId: string }) {
   const { data: availability, isLoading } = useQuery({
     queryKey: ['availability', locationId],
@@ -191,25 +266,10 @@ function LocationCard({ locationId }: { locationId: string }) {
         )}
 
         {availability.inventorySet && availability.availableChickens !== null && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Verfügbar</span>
-              <span className="font-semibold">
-                {availability.availableChickens} Hähnchen
-              </span>
-            </div>
-            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    (availability.availableChickens / (availability.totalChickens || 1)) * 100
-                  )}%`,
-                }}
-              />
-            </div>
-          </div>
+          <AvailabilityDisplay
+            available={availability.availableChickens}
+            total={availability.totalChickens || 1}
+          />
         )}
 
         {!availability.isOpen && (
