@@ -108,6 +108,11 @@ pipeline {
                                 eval \$(ssh-agent -s)
                                 ssh-add \$SSH_KEY
 
+                                # SSH Remote setzen und Branch auschecken
+                                git remote set-url origin git@github.com:daviidovv/foodtruck-booking-service.git
+                                git fetch origin main
+                                git checkout -B main origin/main
+
                                 mvn versions:set -DnewVersion=${params.RELEASE_VERSION} -B
                                 mvn versions:commit -B
 
@@ -200,6 +205,9 @@ pipeline {
 
                             eval \$(ssh-agent -s)
                             ssh-add \$SSH_KEY
+
+                            # SSH Remote setzen
+                            git remote set-url origin git@github.com:daviidovv/foodtruck-booking-service.git
 
                             git tag -a ${tagName} -m "Release ${params.RELEASE_VERSION}" || echo "Tag existiert bereits"
                             git push origin ${tagName} || echo "Tag bereits gepusht"
