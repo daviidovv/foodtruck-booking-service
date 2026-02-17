@@ -21,6 +21,7 @@ export function ReservationPage() {
     friesCount: 0,
     pickupTime: '',
     notes: '',
+    privacyAccepted: false,
   })
   const [error, setError] = useState<string | null>(null)
 
@@ -47,6 +48,10 @@ export function ReservationPage() {
     if (!locationId) return
     if (formData.chickenCount + formData.friesCount === 0) {
       setError('Bitte wähle mindestens ein Produkt aus.')
+      return
+    }
+    if (!formData.privacyAccepted) {
+      setError('Bitte stimme der Datenschutzerklärung zu.')
       return
     }
 
@@ -237,6 +242,24 @@ export function ReservationPage() {
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
+            </div>
+
+            {/* Privacy consent */}
+            <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30">
+              <input
+                type="checkbox"
+                id="privacy"
+                checked={formData.privacyAccepted}
+                onChange={(e) => setFormData({ ...formData, privacyAccepted: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="privacy" className="text-sm text-muted-foreground">
+                Ich habe die{' '}
+                <Link to="/datenschutz" className="text-primary hover:underline" target="_blank">
+                  Datenschutzerklärung
+                </Link>{' '}
+                gelesen und stimme der Verarbeitung meiner Daten zur Reservierungsabwicklung zu. *
+              </label>
             </div>
 
             {/* Error message */}

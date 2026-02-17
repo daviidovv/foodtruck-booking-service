@@ -2,11 +2,14 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
+import { Footer } from '@/components/layout/Footer'
 import { HomePage } from '@/features/customer/pages/HomePage'
 import { LookupPage } from '@/features/customer/pages/LookupPage'
 import { ReservationPage } from '@/features/customer/pages/ReservationPage'
 import { ConfirmationPage } from '@/features/customer/pages/ConfirmationPage'
 import { SchedulePage } from '@/features/customer/pages/SchedulePage'
+import { ImpressumPage } from '@/features/legal/pages/ImpressumPage'
+import { DatenschutzPage } from '@/features/legal/pages/DatenschutzPage'
 
 // Lazy load staff and admin pages - these won't be in the customer bundle
 const StaffLoginPage = lazy(() =>
@@ -33,23 +36,26 @@ function PageLoader() {
 
 function App() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Routes>
-        {/* Customer routes with header */}
+        {/* Customer routes with header and footer */}
         <Route
           path="/*"
           element={
             <>
               <Header />
-              <main className="container py-6">
+              <main className="container py-6 flex-1">
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/wochenplan" element={<SchedulePage />} />
                   <Route path="/reserve/:locationId" element={<ReservationPage />} />
                   <Route path="/confirmation/:code" element={<ConfirmationPage />} />
                   <Route path="/lookup" element={<LookupPage />} />
+                  <Route path="/impressum" element={<ImpressumPage />} />
+                  <Route path="/datenschutz" element={<DatenschutzPage />} />
                 </Routes>
               </main>
+              <Footer />
             </>
           }
         />
