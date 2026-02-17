@@ -108,6 +108,10 @@ pipeline {
                                 eval \$(ssh-agent -s)
                                 ssh-add \$SSH_KEY
 
+                                # GitHub Host Key hinzufügen
+                                mkdir -p ~/.ssh
+                                ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
                                 # SSH Remote setzen und Branch auschecken
                                 git remote set-url origin git@github.com:daviidovv/foodtruck-booking-service.git
                                 git fetch origin main
@@ -205,6 +209,10 @@ pipeline {
 
                             eval \$(ssh-agent -s)
                             ssh-add \$SSH_KEY
+
+                            # GitHub Host Key hinzufügen
+                            mkdir -p ~/.ssh
+                            ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
 
                             # SSH Remote setzen
                             git remote set-url origin git@github.com:daviidovv/foodtruck-booking-service.git
