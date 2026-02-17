@@ -8,7 +8,11 @@
 # - Nicht für lokale Entwicklung verwenden (nutze docker-compose.yml)
 #
 # Vor dem ersten Start auf dem Server:
-# 1. .env Datei erstellen mit POSTGRES_PASSWORD
+# 1. .env Datei erstellen mit:
+#    - POSTGRES_PASSWORD (Datenbank)
+#    - STAFF_WAGEN1_PASSWORD (Login für Wagen 1)
+#    - STAFF_WAGEN2_PASSWORD (Login für Wagen 2)
+#    - ADMIN_PASSWORD (Admin-Login)
 # 2. Verzeichnisse anlegen: mkdir -p db logs
 
 services:
@@ -26,6 +30,10 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
       - SPRING_PROFILES_ACTIVE=prod
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+      # Security: Passwords from .env file
+      - STAFF_WAGEN1_PASSWORD=${STAFF_WAGEN1_PASSWORD:?Staff Wagen1 password required}
+      - STAFF_WAGEN2_PASSWORD=${STAFF_WAGEN2_PASSWORD:?Staff Wagen2 password required}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Admin password required}
     depends_on:
       db:
         condition: service_healthy

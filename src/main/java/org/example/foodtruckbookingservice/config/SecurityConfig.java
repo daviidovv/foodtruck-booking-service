@@ -1,5 +1,6 @@
 package org.example.foodtruckbookingservice.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,6 +25,15 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Value("${app.security.staff.wagen1.password}")
+    private String wagen1Password;
+
+    @Value("${app.security.staff.wagen2.password}")
+    private String wagen2Password;
+
+    @Value("${app.security.admin.password}")
+    private String adminPassword;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -59,25 +69,26 @@ public class SecurityConfig {
     /**
      * In-memory user details for MVP.
      * Two truck accounts (wagen1, wagen2) for staff tablets.
+     * Passwords are configured via environment variables.
      * TODO: Replace with database-backed UserDetailsService in Phase 2.
      */
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
         var wagen1 = User.builder()
                 .username("wagen1")
-                .password(passwordEncoder.encode("wagen1"))
+                .password(passwordEncoder.encode(wagen1Password))
                 .roles("STAFF")
                 .build();
 
         var wagen2 = User.builder()
                 .username("wagen2")
-                .password(passwordEncoder.encode("wagen2"))
+                .password(passwordEncoder.encode(wagen2Password))
                 .roles("STAFF")
                 .build();
 
         var admin = User.builder()
                 .username("admin")
-                .password(passwordEncoder.encode("admin123"))
+                .password(passwordEncoder.encode(adminPassword))
                 .roles("ADMIN")
                 .build();
 
