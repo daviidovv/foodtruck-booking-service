@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Bird, Search, Menu, CalendarDays } from 'lucide-react'
+import { Drumstick, Search, Menu, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,7 @@ export function Header() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-            <Bird className="h-7 w-7 text-white" />
+            <Drumstick className="h-7 w-7 text-white" />
           </div>
           <div className="hidden sm:block">
             <span className="font-bold text-xl tracking-tight">
