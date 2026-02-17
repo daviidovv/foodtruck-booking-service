@@ -51,9 +51,3 @@ frontend/vite.config.d.ts
 
 ### macOS ###
 .DS_Store
-
-jenkins/Jenkinsfile.develop
-jenkins/Jenkinsfile.feature
-jenkins/Jenkinsfile.main
-jenkins/stages.groovy
-jenkins/

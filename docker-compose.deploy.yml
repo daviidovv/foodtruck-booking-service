@@ -1,15 +1,21 @@
-version: '3.8'
-
 # ===========================================
-# Production Docker Compose
-# Usage: docker-compose -f docker-compose.prod.yml up -d
+# Docker Compose für Jenkins Deployment
+# Wird von Jenkins auf den Server kopiert
 # ===========================================
+#
+# WICHTIG: Diese Datei wird von Jenkins verwendet!
+# - Jenkins ersetzt ":latest" durch die Release-Version
+# - Nicht für lokale Entwicklung verwenden (nutze docker-compose.yml)
+#
+# Vor dem ersten Start auf dem Server:
+# 1. .env Datei erstellen mit POSTGRES_PASSWORD
+# 2. Verzeichnisse anlegen: mkdir -p db logs
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Image wird von Jenkins Registry gepullt
+    # ANPASSEN: Registry und Image-Name müssen zu Jenkinsfile.main passen
+    image: jenkins.lands.between/foodtruck-booking:latest
     container_name: foodtruck-app
     restart: unless-stopped
     ports:
@@ -46,7 +52,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-foodtruck}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./db:/var/lib/postgresql/data
     networks:
       - foodtruck-net
     healthcheck:
@@ -59,10 +65,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  postgres-data:
-    name: foodtruck-postgres-data
 
 networks:
   foodtruck-net:

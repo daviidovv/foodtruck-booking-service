@@ -1,106 +1,221 @@
+// ===========================================
+// Foodtruck Booking - Jenkins Pipeline
+// ===========================================
+// Diese Pipeline erkennt automatisch den Branch und führt
+// die entsprechenden Stages aus.
+
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Release-Version (nur für main-Branch, z.B. 1.0.0)')
+    }
+
     environment {
-        DOCKER_IMAGE = 'foodtruck-app'
-        DEPLOY_DIR = '/opt/foodtruck'
+        // Docker Konfiguration
+        DOCKER_REGISTRY = 'jenkins.lands.between'
+        DOCKER_IMAGE = "${DOCKER_REGISTRY}/foodtruck-booking"
+        DOCKER_CREDENTIALS = 'docker-registry-local'
+
+        // Git Konfiguration
+        GIT_COMMITTER_NAME = 'Jenkins CI'
+        GIT_COMMITTER_EMAIL = 'jenkins@hendl-heinrich.de'
     }
 
     stages {
-        stage('Checkout') {
+        // =====================
+        // BUILD & TEST (alle Branches)
+        // =====================
+        stage('Build') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/YOUR_USERNAME/foodtruck-booking-service.git',
-                    credentialsId: 'github-credentials'
+                sh 'mvn clean package -DskipTests -B'
             }
         }
 
-        stage('Test Backend') {
-            agent {
-                docker {
-                    image 'maven:3.9-eclipse-temurin-21-alpine'
-                    args '-v $HOME/.m2:/root/.m2'
-                }
-            }
+        stage('Test') {
             steps {
                 sh 'mvn test -B'
             }
             post {
                 always {
-                    junit allowEmptyResults: true,
-                          testResults: '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        // =====================
+        // DOCKER (main + develop)
+        // =====================
+        stage('Docker Build & Push') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
             steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
-                    sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+                    def tag = (env.BRANCH_NAME == 'main') ? params.RELEASE_VERSION : "develop-${BUILD_NUMBER}"
+
+                    if (env.BRANCH_NAME == 'main' && !params.RELEASE_VERSION) {
+                        error 'Für main-Branch muss eine RELEASE_VERSION angegeben werden!'
+                    }
+
+                    withCredentials([usernamePassword(
+                        credentialsId: env.DOCKER_CREDENTIALS,
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo \$DOCKER_PASS | docker login \$DOCKER_REGISTRY -u \$DOCKER_USER --password-stdin
+                            docker build -t ${DOCKER_IMAGE}:${tag} .
+                            docker push ${DOCKER_IMAGE}:${tag}
+                        """
+
+                        // Bei main auch :latest pushen
+                        if (env.BRANCH_NAME == 'main') {
+                            sh """
+                                docker tag ${DOCKER_IMAGE}:${tag} ${DOCKER_IMAGE}:latest
+                                docker push ${DOCKER_IMAGE}:latest
+                            """
+                        }
+                    }
                 }
             }
         }
 
+        // =====================
+        // VERSION UPDATE (nur main)
+        // =====================
+        stage('Update Version') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    if (!params.RELEASE_VERSION) {
+                        error 'RELEASE_VERSION muss angegeben werden!'
+                    }
+
+                    def currentVersion = sh(script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout", returnStdout: true).trim()
+
+                    if (currentVersion != params.RELEASE_VERSION) {
+                        withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh', keyFileVariable: 'SSH_KEY')]) {
+                            sh """
+                                git config user.name "${GIT_COMMITTER_NAME}"
+                                git config user.email "${GIT_COMMITTER_EMAIL}"
+
+                                eval \$(ssh-agent -s)
+                                ssh-add \$SSH_KEY
+
+                                mvn versions:set -DnewVersion=${params.RELEASE_VERSION} -B
+                                mvn versions:commit -B
+
+                                git add pom.xml
+                                git commit -m "Release Version ${params.RELEASE_VERSION}"
+                                git push origin main
+                            """
+                        }
+                    } else {
+                        echo "Version ${params.RELEASE_VERSION} ist bereits gesetzt."
+                    }
+                }
+            }
+        }
+
+        // =====================
+        // DEPLOY (nur main)
+        // =====================
         stage('Deploy') {
+            when {
+                branch 'main'
+            }
             steps {
-                withCredentials([string(credentialsId: 'postgres-password', variable: 'POSTGRES_PASSWORD')]) {
-                    sh '''
-                        # Stop existing containers
-                        docker-compose -f docker-compose.prod.yml down || true
+                script {
+                    // ⚠️ HIER ANPASSEN: Dein Server-Hostname
+                    def serverHostname = 'DEIN-SERVER.example.com'
+                    def sshCredentialsId = 'foodtruck-server-ssh'
 
-                        # Start with new image
-                        export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-                        docker-compose -f docker-compose.prod.yml up -d --build
+                    if (serverHostname == 'DEIN-SERVER.example.com') {
+                        error '''
+                        ⚠️ DEPLOYMENT NICHT KONFIGURIERT!
 
-                        # Wait for health check
-                        echo "Waiting for application to start..."
-                        sleep 45
-                    '''
+                        Öffne das Jenkinsfile und ersetze in der Deploy-Stage:
+                        def serverHostname = 'DEIN-SERVER.example.com'
+
+                        mit deinem echten Server-Hostnamen.
+                        '''
+                    }
+
+                    withCredentials([sshUserPrivateKey(
+                        credentialsId: sshCredentialsId,
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )]) {
+                        sh """
+                            mkdir -p ~/.ssh
+                            ssh-keyscan -H ${serverHostname} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+                            sed 's/:latest/:${params.RELEASE_VERSION}/' docker-compose.deploy.yml > docker-compose.tmp.yml
+                            scp -i \$SSH_KEY docker-compose.tmp.yml \$SSH_USER@${serverHostname}:docker-compose.yml
+                            rm docker-compose.tmp.yml
+                        """
+
+                        withCredentials([usernamePassword(
+                            credentialsId: env.DOCKER_CREDENTIALS,
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
+                            sh """
+                                ssh -i \$SSH_KEY \$SSH_USER@${serverHostname} '
+                                    echo "${DOCKER_PASS}" | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin
+                                    docker compose down || true
+                                    docker compose pull
+                                    docker compose up -d
+                                '
+                            """
+                        }
+                    }
+
+                    echo "✅ Deployment auf ${serverHostname} erfolgreich!"
                 }
             }
         }
 
-        stage('Health Check') {
-            steps {
-                sh '''
-                    # Check if app is healthy
-                    for i in 1 2 3 4 5; do
-                        if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
-                            echo "Application is healthy!"
-                            exit 0
-                        fi
-                        echo "Attempt $i: Waiting for application..."
-                        sleep 10
-                    done
-                    echo "Health check failed!"
-                    exit 1
-                '''
+        // =====================
+        // GIT TAG (nur main)
+        // =====================
+        stage('Create Git Tag') {
+            when {
+                branch 'main'
             }
-        }
-
-        stage('Cleanup') {
             steps {
-                sh '''
-                    # Remove old images (keep last 3)
-                    docker images ${DOCKER_IMAGE} --format "{{.ID}} {{.Tag}}" | \
-                        grep -v latest | \
-                        sort -t. -k2 -n -r | \
-                        tail -n +4 | \
-                        awk '{print $1}' | \
-                        xargs -r docker rmi || true
-                '''
+                script {
+                    def tagName = "v${params.RELEASE_VERSION}"
+
+                    withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh', keyFileVariable: 'SSH_KEY')]) {
+                        sh """
+                            git config user.name "${GIT_COMMITTER_NAME}"
+                            git config user.email "${GIT_COMMITTER_EMAIL}"
+
+                            eval \$(ssh-agent -s)
+                            ssh-add \$SSH_KEY
+
+                            git tag -a ${tagName} -m "Release ${params.RELEASE_VERSION}" || echo "Tag existiert bereits"
+                            git push origin ${tagName} || echo "Tag bereits gepusht"
+                        """
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployment erfolgreich!'
+            echo '✅ Pipeline erfolgreich abgeschlossen!'
         }
         failure {
-            echo '❌ Build oder Deployment fehlgeschlagen!'
-            sh 'docker-compose -f docker-compose.prod.yml logs --tail=100'
+            echo '❌ Pipeline fehlgeschlagen!'
         }
         always {
             cleanWs()
