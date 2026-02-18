@@ -14,7 +14,6 @@ import {
   Check,
   Plus,
   X,
-  Minus,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,10 +42,8 @@ export function StaffDashboardPage() {
   const [showNewReservation, setShowNewReservation] = useState(false)
   const [newReservation, setNewReservation] = useState({
     customerName: '',
-    phoneNumber: '',
     chickenCount: 1,
     friesCount: 0,
-    pickupTime: '',
     notes: '',
   })
 
@@ -127,10 +124,8 @@ export function StaffDashboardPage() {
       setShowNewReservation(false)
       setNewReservation({
         customerName: '',
-        phoneNumber: '',
         chickenCount: 1,
         friesCount: 0,
-        pickupTime: '',
         notes: '',
       })
       showToast('success', `Reservierung erstellt: ${reservation.confirmationCode}`)
@@ -169,10 +164,8 @@ export function StaffDashboardPage() {
     createReservationMutation.mutate({
       locationId,
       customerName: newReservation.customerName,
-      customerEmail: newReservation.phoneNumber || undefined,
       chickenCount: newReservation.chickenCount,
       friesCount: newReservation.friesCount,
-      pickupTime: newReservation.pickupTime || undefined,
       notes: newReservation.notes || undefined,
     })
   }
@@ -372,109 +365,100 @@ export function StaffDashboardPage() {
 
       {/* New Reservation Dialog */}
       {showNewReservation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">Neue Reservierung</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-xl font-bold">Neue Reservierung</h2>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowNewReservation(false)}
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </Button>
             </div>
-            <form onSubmit={handleCreateReservation} className="p-4 space-y-4">
+            <form onSubmit={handleCreateReservation} className="p-5 space-y-5">
               {/* Customer Name */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Name *</label>
+                <label className="text-base font-semibold">Name</label>
                 <Input
+                  className="h-14 text-lg"
                   placeholder="Kundenname"
                   value={newReservation.customerName}
                   onChange={(e) => setNewReservation({ ...newReservation, customerName: e.target.value })}
                   required
+                  autoFocus
                 />
               </div>
 
-              {/* Phone (optional) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Telefon (optional)</label>
-                <Input
-                  placeholder="Telefonnummer"
-                  value={newReservation.phoneNumber}
-                  onChange={(e) => setNewReservation({ ...newReservation, phoneNumber: e.target.value })}
-                />
-              </div>
+              {/* Product Counters */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Chicken Counter */}
+                <div className="p-4 border-2 rounded-xl text-center space-y-3">
+                  <span className="text-3xl">🍗</span>
+                  <p className="font-semibold">Hähnchen</p>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="h-12 w-12 text-xl"
+                      onClick={() => updateReservationCount('chickenCount', -1)}
+                      disabled={newReservation.chickenCount <= 0}
+                    >
+                      −
+                    </Button>
+                    <span className="text-3xl font-bold w-12 text-center">
+                      {newReservation.chickenCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="h-12 w-12 text-xl"
+                      onClick={() => updateReservationCount('chickenCount', 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
 
-              {/* Chicken Counter */}
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="font-medium">Hähnchen</span>
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => updateReservationCount('chickenCount', -1)}
-                    disabled={newReservation.chickenCount <= 0}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center font-semibold">
-                    {newReservation.chickenCount}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => updateReservationCount('chickenCount', 1)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                {/* Fries Counter */}
+                <div className="p-4 border-2 rounded-xl text-center space-y-3">
+                  <span className="text-3xl">🍟</span>
+                  <p className="font-semibold">Pommes</p>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="h-12 w-12 text-xl"
+                      onClick={() => updateReservationCount('friesCount', -1)}
+                      disabled={newReservation.friesCount <= 0}
+                    >
+                      −
+                    </Button>
+                    <span className="text-3xl font-bold w-12 text-center">
+                      {newReservation.friesCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="h-12 w-12 text-xl"
+                      onClick={() => updateReservationCount('friesCount', 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
                 </div>
               </div>
 
-              {/* Fries Counter */}
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="font-medium">Pommes</span>
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => updateReservationCount('friesCount', -1)}
-                    disabled={newReservation.friesCount <= 0}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center font-semibold">
-                    {newReservation.friesCount}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => updateReservationCount('friesCount', 1)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Pickup Time */}
+              {/* Notes (collapsed) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Abholzeit (optional)</label>
                 <Input
-                  type="time"
-                  value={newReservation.pickupTime}
-                  onChange={(e) => setNewReservation({ ...newReservation, pickupTime: e.target.value })}
-                />
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Anmerkungen (optional)</label>
-                <Input
-                  placeholder="z.B. extra knusprig"
+                  className="h-12"
+                  placeholder="Anmerkung (optional, z.B. extra knusprig)"
                   value={newReservation.notes}
                   onChange={(e) => setNewReservation({ ...newReservation, notes: e.target.value })}
                 />
@@ -483,15 +467,16 @@ export function StaffDashboardPage() {
               {/* Submit */}
               <Button
                 type="submit"
-                className="w-full"
+                size="lg"
+                className="w-full h-14 text-lg"
                 disabled={createReservationMutation.isPending}
               >
                 {createReservationMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 ) : (
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Check className="h-5 w-5 mr-2" />
                 )}
-                Reservierung erstellen
+                Reservierung speichern
               </Button>
             </form>
           </div>
