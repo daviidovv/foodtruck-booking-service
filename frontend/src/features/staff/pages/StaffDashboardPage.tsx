@@ -12,13 +12,16 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  Plus,
+  X,
+  Minus,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Reservation } from '@/types'
+import { Reservation, CreateReservationRequest } from '@/types'
 import { formatTime } from '@/lib/utils'
 
 type ToastType = 'success' | 'error'
@@ -37,6 +40,15 @@ export function StaffDashboardPage() {
   const [locationId, setLocationId] = useState<string | null>(null)
   const [newInventory, setNewInventory] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
+  const [showNewReservation, setShowNewReservation] = useState(false)
+  const [newReservation, setNewReservation] = useState({
+    customerName: '',
+    phoneNumber: '',
+    chickenCount: 1,
+    friesCount: 0,
+    pickupTime: '',
+    notes: '',
+  })
 
   const showToast = (type: ToastType, message: string) => {
     setToast({ type, message })
@@ -107,6 +119,27 @@ export function StaffDashboardPage() {
     },
   })
 
+  const createReservationMutation = useMutation({
+    mutationFn: (data: CreateReservationRequest) => api.createReservation(data),
+    onSuccess: (reservation) => {
+      queryClient.invalidateQueries({ queryKey: ['staff-reservations'] })
+      queryClient.invalidateQueries({ queryKey: ['staff-inventory'] })
+      setShowNewReservation(false)
+      setNewReservation({
+        customerName: '',
+        phoneNumber: '',
+        chickenCount: 1,
+        friesCount: 0,
+        pickupTime: '',
+        notes: '',
+      })
+      showToast('success', `Reservierung erstellt: ${reservation.confirmationCode}`)
+    },
+    onError: () => {
+      showToast('error', 'Fehler beim Erstellen der Reservierung')
+    },
+  })
+
   const handleLogout = () => {
     sessionStorage.removeItem('staff_credentials')
     sessionStorage.removeItem('staff_location')
@@ -124,6 +157,31 @@ export function StaffDashboardPage() {
 
   const handleStatusChange = (reservationId: string, status: string) => {
     updateStatusMutation.mutate({ reservationId, status })
+  }
+
+  const handleCreateReservation = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!locationId) return
+    if (newReservation.chickenCount + newReservation.friesCount === 0) {
+      showToast('error', 'Mindestens ein Produkt auswählen')
+      return
+    }
+    createReservationMutation.mutate({
+      locationId,
+      customerName: newReservation.customerName,
+      customerEmail: newReservation.phoneNumber || undefined,
+      chickenCount: newReservation.chickenCount,
+      friesCount: newReservation.friesCount,
+      pickupTime: newReservation.pickupTime || undefined,
+      notes: newReservation.notes || undefined,
+    })
+  }
+
+  const updateReservationCount = (field: 'chickenCount' | 'friesCount', delta: number) => {
+    setNewReservation((prev) => ({
+      ...prev,
+      [field]: Math.max(0, Math.min(50, prev[field] + delta)),
+    }))
   }
 
   if (!credentials || !locationId) {
@@ -256,7 +314,13 @@ export function StaffDashboardPage() {
                   {activeReservations.length} offene Reservierungen
                 </CardDescription>
               </div>
-              <Badge variant="default">{activeReservations.length}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="default">{activeReservations.length}</Badge>
+                <Button size="sm" onClick={() => setShowNewReservation(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Neue Reservierung
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -305,6 +369,134 @@ export function StaffDashboardPage() {
           </Card>
         )}
       </main>
+
+      {/* New Reservation Dialog */}
+      {showNewReservation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Neue Reservierung</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowNewReservation(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <form onSubmit={handleCreateReservation} className="p-4 space-y-4">
+              {/* Customer Name */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Name *</label>
+                <Input
+                  placeholder="Kundenname"
+                  value={newReservation.customerName}
+                  onChange={(e) => setNewReservation({ ...newReservation, customerName: e.target.value })}
+                  required
+                />
+              </div>
+
+              {/* Phone (optional) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Telefon (optional)</label>
+                <Input
+                  placeholder="Telefonnummer"
+                  value={newReservation.phoneNumber}
+                  onChange={(e) => setNewReservation({ ...newReservation, phoneNumber: e.target.value })}
+                />
+              </div>
+
+              {/* Chicken Counter */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <span className="font-medium">Hähnchen</span>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateReservationCount('chickenCount', -1)}
+                    disabled={newReservation.chickenCount <= 0}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-8 text-center font-semibold">
+                    {newReservation.chickenCount}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateReservationCount('chickenCount', 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Fries Counter */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <span className="font-medium">Pommes</span>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateReservationCount('friesCount', -1)}
+                    disabled={newReservation.friesCount <= 0}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-8 text-center font-semibold">
+                    {newReservation.friesCount}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateReservationCount('friesCount', 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Pickup Time */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Abholzeit (optional)</label>
+                <Input
+                  type="time"
+                  value={newReservation.pickupTime}
+                  onChange={(e) => setNewReservation({ ...newReservation, pickupTime: e.target.value })}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Anmerkungen (optional)</label>
+                <Input
+                  placeholder="z.B. extra knusprig"
+                  value={newReservation.notes}
+                  onChange={(e) => setNewReservation({ ...newReservation, notes: e.target.value })}
+                />
+              </div>
+
+              {/* Submit */}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createReservationMutation.isPending}
+              >
+                {createReservationMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Reservierung erstellen
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (
